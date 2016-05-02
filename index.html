@@ -1,0 +1,105 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>mfsv</title>
+		<style>
+			body { margin: 0; }
+			canvas { width: 100%; height: 100% }
+		</style>
+	</head>
+	<body>
+		<div id="container"></div>
+	</body>
+
+	<script src="js/Three.js"></script>
+	<script src="js/OBJLoader.js"></script>
+
+	<!-- Shaders -->
+	<script type="x-shader/x-vertex" id="vertexShader">
+		// switch on high precision floats
+		#ifdef GL_ES
+		precision highp float;
+		#endif
+
+		void main()
+		{
+			gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+		}
+	</script>
+	<script type="x-shader/x-fragment" id="fragmentShader">
+		#ifdef GL_ES
+		precision highp float;
+		#endif
+		void main()
+		{
+			gl_FragColor = vec4(0.0, 0.0, 1.0, 1.0);
+		}
+	</script>
+
+
+
+	<script type="text/javascript">
+	// initialize camera
+	var WIDTH = window.innerWidth, HEIGHT = window.innerHeight;
+	var camera = new THREE.PerspectiveCamera(75, WIDTH / HEIGHT, 0.1, 2000);
+	camera.position.z = 7;
+
+	// prepare scene
+	var scene = new THREE.Scene();
+	//		var ambient = new THREE.AmbientLight( 0x101030 );
+	//		scene.add(ambient);
+
+	// load shaders -- todo: Use RawShaderMaterial
+	var shaderMaterial = new THREE.ShaderMaterial({
+		vertexShader:   document.getElementById('vertexShader').textContent,
+		fragmentShader: document.getElementById('fragmentShader').textContent
+	});
+
+	// load teapot
+	var manager = new THREE.LoadingManager();
+	manager.onProgress = function ( item, loaded, total ) {
+		console.log( item, loaded, total );
+	};
+	var loader = new THREE.OBJLoader(manager);
+	loader.load('obj/teapot.obj', function (object) {
+		object.traverse( function ( child ) {
+						if ( child instanceof THREE.Mesh ) {
+							child.material = shaderMaterial;
+						}
+					} );
+		scene.add(object);
+		render();
+	} );
+	scene.add(camera);
+
+	// add a cube to the scene
+	var geometry = new THREE.BoxGeometry(1, 1, 1);
+	var cube = new THREE.Mesh(geometry, shaderMaterial);
+	//scene.add(cube);
+
+	// prepare renderer
+	var renderer = new THREE.WebGLRenderer();
+	renderer.setSize(window.innerWidth, window.innerHeight);
+	renderer.setPixelRatio(window.devicePixelRatio);
+
+	// attach the render-supplied DOM element
+	document.body.appendChild(renderer.domElement);
+	window.addEventListener( 'resize', onWindowResize, false );
+
+	render();
+
+	function render() {
+		camera.lookAt(scene.position);
+		renderer.render(scene, camera);
+	}
+
+	function onWindowResize() {
+		windowHalfX = window.innerWidth / 2;
+		windowHalfY = window.innerHeight / 2;
+		camera.updateProjectionMatrix();
+		renderer.setSize( window.innerWidth, window.innerHeight );
+		render();
+	}
+	</script>
+</html>
