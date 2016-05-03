@@ -13,6 +13,7 @@
 
 	<script src="js/Three.js"></script>
 	<script src="js/OBJLoader.js"></script>
+	<script src="js/TrackballControls.js"></script>
 
 	<!-- Shaders -->
 	<script type="x-shader/x-vertex" id="vertexShader">
@@ -45,53 +46,70 @@
 
 
 	<script type="text/javascript">
-	// initialize camera
-	var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-	camera.position.z = 7;
 
-	// prepare scene
-	var scene = new THREE.Scene();
-	scene.add(camera);
-	//		var ambient = new THREE.AmbientLight( 0x101030 );
-	//		scene.add(ambient);
+	var camera, controls, scene, renderer;
 
-	// load shaders -- todo: Use RawShaderMaterial
-	var shaderMaterial = new THREE.ShaderMaterial({
-		vertexShader:   document.getElementById('vertexShader').textContent,
-		fragmentShader: document.getElementById('fragmentShader').textContent
-	});
+	init();
+	animate();
 
-	// load and add teapot to the scene
-	var manager = new THREE.LoadingManager();
-	manager.onProgress = function ( item, loaded, total ) {
-		console.log( item, loaded, total );
-	};
-	var loader = new THREE.OBJLoader(manager);
-	loader.load('obj/teapot.obj', function (object) {
-		object.traverse( function ( child ) {
-						if ( child instanceof THREE.Mesh ) {
-							child.material = shaderMaterial;
-						}
-					} );
-		scene.add(object);
-		render();
-	} );
+	function init() {
+		// initialize camera
+		camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+		camera.position.z = 7;
 
-	// add a cube to the scene
-	var geometry = new THREE.BoxGeometry(1, 1, 1);
-	var cube = new THREE.Mesh(geometry, shaderMaterial);
-	//scene.add(cube);
+		// prepare scene
+		scene = new THREE.Scene();
+		scene.add(camera);
 
-	// prepare renderer
-	var renderer = new THREE.WebGLRenderer();
-	renderer.setSize(window.innerWidth, window.innerHeight);
-	renderer.setPixelRatio(window.devicePixelRatio);
+		// load shaders -- todo: Use RawShaderMaterial
+		var shaderMaterial = new THREE.ShaderMaterial({
+			vertexShader:   document.getElementById('vertexShader').textContent,
+			fragmentShader: document.getElementById('fragmentShader').textContent
+		});
 
-	// attach the render-supplied DOM element
-	document.body.appendChild(renderer.domElement);
-	window.addEventListener( 'resize', onWindowResize, false );
+		// load and add teapot to the scene
+		var manager = new THREE.LoadingManager();
+		manager.onProgress = function ( item, loaded, total ) {
+			console.log( item, loaded, total );
+		};
+		var loader = new THREE.OBJLoader(manager);
+		loader.load('obj/teapot.obj', function (object) {
+			object.traverse( function ( child ) {
+							if ( child instanceof THREE.Mesh ) {
+								child.material = shaderMaterial;
+							}
+						} );
+			scene.add(object);
+			render();
+		} );
 
-	render();
+		// prepare renderer
+		renderer = new THREE.WebGLRenderer( { antialias: false } );
+		renderer.setSize(window.innerWidth, window.innerHeight);
+		renderer.setPixelRatio(window.devicePixelRatio);
+
+		// attach the render-supplied DOM element
+		document.body.appendChild(renderer.domElement);
+		window.addEventListener('resize', onWindowResize, false);
+
+		// configure controls
+		controls = new THREE.TrackballControls(camera);
+		controls.addEventListener('change', render);
+		controls.target.set(0, 0, 0);
+		controls.rotateSpeed = 5.0;
+		controls.zoomSpeed = 1.2;
+		controls.panSpeed = 0.8;
+		controls.noZoom = false;
+		controls.noPan = false;
+		controls.staticMoving = true;
+		controls.dynamicDampingFactor = 0.3;
+		controls.keys = [ 65, 83, 68 ];
+	}
+
+	function animate() {
+		requestAnimationFrame(animate);
+		controls.update();
+	}
 
 	function render() {
 		camera.lookAt(scene.position);
@@ -99,10 +117,10 @@
 	}
 
 	function onWindowResize() {
-		windowHalfX = window.innerWidth / 2;
-		windowHalfY = window.innerHeight / 2;
-		camera.updateProjectionMatrix();
+		camera.aspect = window.innerWidth / window.innerHeight;
 		renderer.setSize(window.innerWidth, window.innerHeight);
+		camera.updateProjectionMatrix();
+		controls.handleResize();
 		render();
 	}
 	</script>
