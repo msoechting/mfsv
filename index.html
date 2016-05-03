@@ -25,7 +25,7 @@
 		void main() {
 		    vNormal = normal;
 		    gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
-		}
+			}
 	</script>
 
 	<script type="x-shader/x-fragment" id="fragmentShader">
@@ -50,6 +50,10 @@
 	animate();
 
 	function init() {
+		// hide scrollbars
+		document.documentElement.style.overflow = 'hidden';  // firefox, chrome
+    document.body.scroll = "no"; // ie only
+
 		// initialize camera
 		camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
 		camera.position.z = 7;
