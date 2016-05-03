@@ -34,11 +34,8 @@
 		precision highp float;
 		#endif
 		varying vec3 vNormal;
-
 		void main() {
-		    vec3 light = vec3(0.5,0.2,1.0);
-		    light = normalize(light);
-		    float dProd = max(0.0, dot(vNormal, light));
+		    float dProd = max(0.0, dot(vNormal, normalize(cameraPosition)));
 		    gl_FragColor = vec4(dProd, dProd, dProd, 1.0);
 			}
 	</script>
@@ -63,6 +60,9 @@
 
 		// load shaders -- todo: Use RawShaderMaterial
 		var shaderMaterial = new THREE.ShaderMaterial({
+			uniforms: {
+				cameraPosition: { value: camera.position }
+			},
 			vertexShader:   document.getElementById('vertexShader').textContent,
 			fragmentShader: document.getElementById('fragmentShader').textContent
 		});
@@ -112,7 +112,6 @@
 	}
 
 	function render() {
-		camera.lookAt(scene.position);
 		renderer.render(scene, camera);
 	}
 
