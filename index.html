@@ -12,6 +12,7 @@
 	</body>
 
 	<script src="js/Three.js"></script>
+	<script src="js/dat.gui.min.js"></script>
 	<script src="js/OBJLoader.js"></script>
 	<script src="js/TrackballControls.js"></script>
 
@@ -22,9 +23,15 @@
 		precision highp float;
 		#endif
 		varying vec3 vNormal;
+		uniform bool antiAliasing;
+		uniform vec2 aaNdcOffset;
 		void main() {
 		    vNormal = normal;
-		    gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0);
+		    vec4 ndcVertex = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+				if (antiAliasing) {
+					ndcVertex.xy += aaNdcOffset * ndcVertex.w;
+				}
+				gl_Position = ndcVertex;
 			}
 	</script>
 
@@ -47,11 +54,10 @@
 	<script type="text/javascript">
 
 	var mainCamera, controls, mainScene, renderer, mainShaderMaterial, finalShaderMaterial;
-	var firstBuffer, secondBuffer, bufferFlipFlop = true, textureQuad;
-	var frameCount = 0, frameCountTarget = 20;
+	var firstBuffer, secondBuffer, bufferFlipFlop = true, textureQuad, screenWidth, screenHeight;
+	var frameCount = 0, frameCountTarget;
 
 	init();
-	//animate();
 
 	function init() {
 		// hide scrollbars
@@ -59,7 +65,8 @@
     document.body.scroll = "no"; // ie only
 
 		// prepare renderer
-		var screenWidth = window.innerWidth, screenHeight = window.innerHeight;
+		screenWidth = window.innerWidth;
+		screenHeight = window.innerHeight;
 		renderer = new THREE.WebGLRenderer( { antialias: false } );
 		renderer.setSize(screenWidth, screenHeight);
 		renderer.setPixelRatio(window.devicePixelRatio);
@@ -91,17 +98,22 @@
 				cameraPosition: { value: mainCamera.position },
 				accumulationBuffer: { type: "t", value: firstBuffer },
 				weight: { value: 0.0 },
-				resolution: { value: new THREE.Vector2(screenWidth, screenHeight) }
+				resolution: { value: new THREE.Vector2(screenWidth, screenHeight) },
+				antiAliasing: { value: true },
+				aaNdcOffset: { value: new THREE.Vector2(0.0, 0.0) }
 			},
-			vertexShader:   document.getElementById('vertexShader').textContent,
+			vertexShader: document.getElementById('vertexShader').textContent,
 			fragmentShader: document.getElementById('fragmentShader').textContent
 		});
 
 		// load and add teapot to the scene
 		var manager = new THREE.LoadingManager();
 		manager.onProgress = function (item, loaded, total) {
-			console.log(item, loaded, total);
-			animate(); // todo: put this into onFinish (or similiar) instead
+			console.log("Loaded item " + item + " (" + loaded + " of " + total + " objects)");
+		};
+		manager.onLoad = function () {
+			console.log("Loading finished!");
+			animate();
 		};
 		var loader = new THREE.OBJLoader(manager);
 		loader.load('obj/teapot.obj', function (object) {
@@ -131,6 +143,28 @@
 		controls.dynamicDampingFactor = 0.3;
 		controls.keys = [ 65, 83, 68 ];
 
+		// set up gui
+		gui = new dat.GUI();
+		var guiOptions = {
+			targetFrameCount: "20",
+			antiAliasing: false
+		};
+		var updateTargetFrameCount = function() {
+			var newFrameCountTarget = parseFloat(guiOptions.targetFrameCount).toFixed(0);
+			if (newFrameCountTarget != frameCountTarget && newFrameCountTarget > 0) {
+				frameCountTarget = newFrameCountTarget;
+				requestRender();
+			}
+		};
+		var updateRenderSettings = function () {
+			mainShaderMaterial.uniforms.antiAliasing.value = guiOptions.antiAliasing;
+			requestRender();
+		}
+		updateTargetFrameCount();
+		updateRenderSettings();
+		gui.add(guiOptions, "targetFrameCount").onChange(updateTargetFrameCount);
+		gui.add(guiOptions, "antiAliasing", true).onChange(updateRenderSettings);
+
 		// attach the render-supplied DOM element
 		document.body.appendChild(renderer.domElement);
 		window.addEventListener('resize', onWindowResize, false);
@@ -153,16 +187,22 @@
 
 	function render() {
 		// On first frame, we read from secondBuffer and write to firstBuffer
-		mainShaderMaterial.uniforms.accumulationBuffer.value =  bufferFlipFlop ? secondBuffer : firstBuffer
+		mainShaderMaterial.uniforms.accumulationBuffer.value =  bufferFlipFlop ? secondBuffer : firstBuffer;
 		mainShaderMaterial.uniforms.weight.value = frameCount / (frameCount + 1);
-		//console.log("Mix-Weight: ", frameCount / (frameCount + 1))
+
+		if (mainShaderMaterial.uniforms.antiAliasing.value) {
+				var xRand = (Math.random() - 0.5);
+				var yRand = (Math.random() - 0.5);
+				mainShaderMaterial.uniforms.aaNdcOffset.value.x = xRand / screenWidth;
+				mainShaderMaterial.uniforms.aaNdcOffset.value.y = yRand / screenHeight;
+		}
 
 		if(bufferFlipFlop)
 			renderer.render(mainScene, mainCamera, firstBuffer, true);
 		else
 			renderer.render(mainScene, mainCamera, secondBuffer, true);
 
-		textureQuad.material.map = secondBuffer; // !bufferFlipFlop ? secondBuffer :
+		textureQuad.material.map = !bufferFlipFlop ? secondBuffer : firstBuffer;
 
 		renderer.render(finalScene, finalCamera);
 
@@ -175,9 +215,11 @@
 		renderer.setSize(screenWidth, screenHeight);
 		firstBuffer.setSize(screenWidth, screenHeight);
 		secondBuffer.setSize(screenWidth, screenHeight);
+		mainShaderMaterial.uniforms.resolution.value.x = screenWidth;
+		mainShaderMaterial.uniforms.resolution.value.y = screenHeight;
 		mainCamera.updateProjectionMatrix();
 		controls.handleResize();
-		render();
+		requestRender();
 	}
 	</script>
 </html>
