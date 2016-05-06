@@ -34,17 +34,22 @@
 		precision highp float;
 		#endif
 		varying vec3 vNormal;
+		uniform vec2 resolution;
+		uniform sampler2D accumulationBuffer;
+
 		void main() {
 		    float dProd = max(0.0, dot(vNormal, normalize(cameraPosition)));
 		    gl_FragColor = vec4(dProd, dProd, dProd, 1.0);
+				//texture2D(accumulationBuffer, gl_FragCoord.xy / resolution.xy);
+				//mix(vec4(dProd, dProd, dProd, 1.0), texture2D(accumulationBuffer, gl_FragCoord.xy), weight);
 			}
 	</script>
 
-
-
 	<script type="text/javascript">
 
-	var camera, controls, scene, renderer;
+	var mainCamera, controls, mainScene, renderer, mainShaderMaterial, finalShaderMaterial;
+	var firstBuffer, secondBuffer, bufferFlipFlop = true, textureQuad;
+	var currentFrame, frameCount = 50;
 
 	init();
 	animate();
@@ -54,18 +59,38 @@
 		document.documentElement.style.overflow = 'hidden';  // firefox, chrome
     document.body.scroll = "no"; // ie only
 
-		// initialize camera
-		camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
-		camera.position.z = 7;
+		// prepare renderer
+		var screenWidth = window.innerWidth, screenHeight = window.innerHeight;
+		renderer = new THREE.WebGLRenderer( { antialias: false } );
+		renderer.setSize(screenWidth, screenHeight);
+		renderer.setPixelRatio(window.devicePixelRatio);
+
+		// set up buffers
+		var bufferSettings = {
+			minFilter: THREE.LinearFilter,
+			agFilter: THREE.LinearFilter,
+			format: THREE.RGBAFormat,
+			type: THREE.FloatType
+		};
+		firstBuffer = new THREE.WebGLRenderTarget(screenWidth, screenHeight, bufferSettings);
+		secondBuffer = new THREE.WebGLRenderTarget(screenWidth, screenHeight, bufferSettings);
+
+		// initialize cameras
+		mainCamera = new THREE.PerspectiveCamera(75, screenWidth / screenHeight, 0.1, 2000);
+		mainCamera.position.z = 7;
+		finalCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
 		// prepare scene
-		scene = new THREE.Scene();
-		scene.add(camera);
+		mainScene = new THREE.Scene();
+		mainScene.add(mainCamera);
+		finalScene = new THREE.Scene();
+		finalScene.add(finalCamera);
 
 		// load shaders -- todo: Use RawShaderMaterial
-		var shaderMaterial = new THREE.ShaderMaterial({
+		mainShaderMaterial = new THREE.ShaderMaterial({
 			uniforms: {
-				cameraPosition: { value: camera.position }
+				cameraPosition: { value: mainCamera.position },
+				accumulationBuffer: { type: "t", value: firstBuffer }
 			},
 			vertexShader:   document.getElementById('vertexShader').textContent,
 			fragmentShader: document.getElementById('fragmentShader').textContent
@@ -80,25 +105,20 @@
 		loader.load('obj/teapot.obj', function (object) {
 			object.traverse( function ( child ) {
 							if ( child instanceof THREE.Mesh ) {
-								child.material = shaderMaterial;
+								child.material = mainShaderMaterial;
 							}
 						} );
-			scene.add(object);
+			mainScene.add(object);
 			render();
 		} );
 
-		// prepare renderer
-		renderer = new THREE.WebGLRenderer( { antialias: false } );
-		renderer.setSize(window.innerWidth, window.innerHeight);
-		renderer.setPixelRatio(window.devicePixelRatio);
+		// load quad for finalScene
+		textureQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), new THREE.MeshBasicMaterial( { color: 0xffffff } ));
+		finalScene.add(textureQuad);
 
-		// attach the render-supplied DOM element
-		document.body.appendChild(renderer.domElement);
-		window.addEventListener('resize', onWindowResize, false);
-
-		// configure controls
-		controls = new THREE.TrackballControls(camera);
-		controls.addEventListener('change', render);
+		// configure trackball controls
+		controls = new THREE.TrackballControls(mainCamera);
+		controls.addEventListener('change', requestRender);
 		controls.target.set(0, 0, 0);
 		controls.rotateSpeed = 5.0;
 		controls.zoomSpeed = 1.2;
@@ -108,21 +128,48 @@
 		controls.staticMoving = true;
 		controls.dynamicDampingFactor = 0.3;
 		controls.keys = [ 65, 83, 68 ];
+
+		// attach the render-supplied DOM element
+		document.body.appendChild(renderer.domElement);
+		window.addEventListener('resize', onWindowResize, false);
 	}
 
 	function animate() {
 		requestAnimationFrame(animate);
 		controls.update();
+		if (currentFrame < frameCount) {
+			currentFrame++;
+			render();
+		}
+	}
+
+	function requestRender() {
+		currentFrame = 0;
 	}
 
 	function render() {
-		renderer.render(scene, camera);
+		console.log("render()");
+		mainShaderMaterial.uniforms.accumulationBuffer.value = bufferFlipFlop ? secondBuffer : firstBuffer
+
+		if(bufferFlipFlop)
+			renderer.render(mainScene, mainCamera, firstBuffer, true);
+		else
+			renderer.render(mainScene, mainCamera, secondBuffer, true);
+
+		textureQuad.material.map = !bufferFlipFlop ? secondBuffer : firstBuffer;
+
+		renderer.render(finalScene, finalCamera);
+
+		bufferFlipFlop = !bufferFlipFlop;
 	}
 
 	function onWindowResize() {
-		camera.aspect = window.innerWidth / window.innerHeight;
-		renderer.setSize(window.innerWidth, window.innerHeight);
-		camera.updateProjectionMatrix();
+		var screenWidth = window.innerWidth, screenHeight = window.innerHeight;
+		mainCamera.aspect = screenWidth / screenHeight;
+		renderer.setSize(screenWidth, screenHeight);
+		firstBuffer.setSize(screenWidth, screenHeight);
+		secondBuffer.setSize(screenWidth, screenHeight);
+		mainCamera.updateProjectionMatrix();
 		controls.handleResize();
 		render();
 	}
