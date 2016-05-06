@@ -36,12 +36,11 @@
 		varying vec3 vNormal;
 		uniform vec2 resolution;
 		uniform sampler2D accumulationBuffer;
+		uniform float weight;
 
 		void main() {
 		    float dProd = max(0.0, dot(vNormal, normalize(cameraPosition)));
-		    gl_FragColor = vec4(dProd, dProd, dProd, 1.0);
-				//texture2D(accumulationBuffer, gl_FragCoord.xy / resolution.xy);
-				//mix(vec4(dProd, dProd, dProd, 1.0), texture2D(accumulationBuffer, gl_FragCoord.xy), weight);
+		    gl_FragColor = mix(vec4(dProd, dProd, dProd, 1.0), vec4(texture2D(accumulationBuffer, gl_FragCoord.xy / resolution.xy).xyz, 1.0), weight);
 			}
 	</script>
 
@@ -49,10 +48,10 @@
 
 	var mainCamera, controls, mainScene, renderer, mainShaderMaterial, finalShaderMaterial;
 	var firstBuffer, secondBuffer, bufferFlipFlop = true, textureQuad;
-	var currentFrame, frameCount = 50;
+	var frameCount = 0, frameCountTarget = 20;
 
 	init();
-	animate();
+	//animate();
 
 	function init() {
 		// hide scrollbars
@@ -90,7 +89,9 @@
 		mainShaderMaterial = new THREE.ShaderMaterial({
 			uniforms: {
 				cameraPosition: { value: mainCamera.position },
-				accumulationBuffer: { type: "t", value: firstBuffer }
+				accumulationBuffer: { type: "t", value: firstBuffer },
+				weight: { value: 0.0 },
+				resolution: { value: new THREE.Vector2(screenWidth, screenHeight) }
 			},
 			vertexShader:   document.getElementById('vertexShader').textContent,
 			fragmentShader: document.getElementById('fragmentShader').textContent
@@ -98,18 +99,19 @@
 
 		// load and add teapot to the scene
 		var manager = new THREE.LoadingManager();
-		manager.onProgress = function ( item, loaded, total ) {
-			console.log( item, loaded, total );
+		manager.onProgress = function (item, loaded, total) {
+			console.log(item, loaded, total);
+			animate(); // todo: put this into onFinish (or similiar) instead
 		};
 		var loader = new THREE.OBJLoader(manager);
 		loader.load('obj/teapot.obj', function (object) {
-			object.traverse( function ( child ) {
-							if ( child instanceof THREE.Mesh ) {
+			teapot = object;
+			object.traverse(function(child) {
+							if (child instanceof THREE.Mesh) {
 								child.material = mainShaderMaterial;
 							}
 						} );
 			mainScene.add(object);
-			render();
 		} );
 
 		// load quad for finalScene
@@ -137,26 +139,30 @@
 	function animate() {
 		requestAnimationFrame(animate);
 		controls.update();
-		if (currentFrame < frameCount) {
-			currentFrame++;
+		if (frameCount < frameCountTarget) {
 			render();
+			frameCount++;
+			console.log("Rendered ", frameCount, "/", frameCountTarget, " frames");
 		}
 	}
 
 	function requestRender() {
-		currentFrame = 0;
+		console.log("Requesting new frame set!");
+		frameCount = 0;
 	}
 
 	function render() {
-		console.log("render()");
-		mainShaderMaterial.uniforms.accumulationBuffer.value = bufferFlipFlop ? secondBuffer : firstBuffer
+		// On first frame, we read from secondBuffer and write to firstBuffer
+		mainShaderMaterial.uniforms.accumulationBuffer.value =  bufferFlipFlop ? secondBuffer : firstBuffer
+		mainShaderMaterial.uniforms.weight.value = frameCount / (frameCount + 1);
+		//console.log("Mix-Weight: ", frameCount / (frameCount + 1))
 
 		if(bufferFlipFlop)
 			renderer.render(mainScene, mainCamera, firstBuffer, true);
 		else
 			renderer.render(mainScene, mainCamera, secondBuffer, true);
 
-		textureQuad.material.map = !bufferFlipFlop ? secondBuffer : firstBuffer;
+		textureQuad.material.map = secondBuffer; // !bufferFlipFlop ? secondBuffer :
 
 		renderer.render(finalScene, finalCamera);
 
