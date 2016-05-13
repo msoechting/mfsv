@@ -4,8 +4,10 @@
 		<meta charset="utf-8" />
 		<title>mfsv</title>
 		<style>
-			body { margin: 0; }
-			canvas { width: 100%; height: 100% }
+			body {
+				margin: 0;
+				background-image: url("./res/bg.png"); /* Background pattern from subtlepatterns.com */
+		 }
 		</style>
 	</head>
 	<body>
@@ -16,18 +18,20 @@
 	<script src="./js/OBJLoader.js"></script>
 	<script src="./js/TrackballControls.js"></script>
 
-	<!-- Shaders -->
-	<script type="x-shader/x-vertex" id="vertexShader">
+	<!-- Shaders for original/main scene -->
+	<script type="x-shader/x-vertex" id="mainSceneVertexShader">
 		// switch on high precision floats
 		#ifdef GL_ES
 		precision highp float;
 		#endif
+
 		varying vec3 vNormal;
 		uniform bool antiAliasing;
 		uniform vec2 aaNdcOffset;
+
 		void main() {
-		    vNormal = normal;
-		    vec4 ndcVertex = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+				vNormal = normal;
+				vec4 ndcVertex = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 				if (antiAliasing) {
 					ndcVertex.xy += aaNdcOffset * ndcVertex.w;
 				}
@@ -35,75 +39,118 @@
 			}
 	</script>
 
-	<script type="x-shader/x-fragment" id="fragmentShader">
+	<script type="x-shader/x-fragment" id="mainSceneFragmentShader">
 		// switch on high precision floats
 		#ifdef GL_ES
-		precision highp float;
-		#endif
+	  precision highp float;
+	  #endif
+
 		varying vec3 vNormal;
-		uniform vec2 resolution;
-		uniform sampler2D accumulationBuffer;
-		uniform float weight;
 
 		void main() {
-		    float dProd = max(0.0, dot(vNormal, normalize(cameraPosition)));
-		    gl_FragColor = mix(vec4(dProd, dProd, dProd, 1.0), vec4(texture2D(accumulationBuffer, gl_FragCoord.xy / resolution.xy).xyz, 1.0), weight);
+				float dProd = max(0.0, dot(vNormal, normalize(cameraPosition)));
+				gl_FragColor = vec4(dProd, dProd, dProd, 1.0);
+			}
+
+	</script>
+
+	<!-- Shaders for final scene -->
+	<script type="x-shader/x-vertex" id="mixSceneVertexShader">
+		// switch on high precision floats
+		#ifdef GL_ES
+	  precision highp float;
+	  #endif
+
+		void main() {
+				gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+			}
+  </script>
+
+	<script type="x-shader/x-fragment" id="mixSceneFragmentShader">
+		// switch on high precision floats
+		#ifdef GL_ES
+	  precision highp float;
+	  #endif
+
+		uniform vec2 viewport;
+		uniform float weight;
+		uniform sampler2D newFrame;
+		uniform sampler2D lastFrame;
+
+		void main() {
+				vec4 newColor = texture2D(newFrame, gl_FragCoord.xy / viewport.xy);
+				vec4 accColor = texture2D(lastFrame, gl_FragCoord.xy / viewport.xy);
+				gl_FragColor = mix(newColor, accColor, weight);
 			}
 	</script>
 
 	<script type="text/javascript">
 
-	var mainCamera, controls, mainScene, renderer, mainShaderMaterial, finalShaderMaterial;
-	var firstBuffer, secondBuffer, bufferFlipFlop = true, textureQuad, screenWidth, screenHeight;
+	var mainCamera, mixCamera, finalCamera, controls, mainScene, mixScene, finalScene, renderer, mixSceneShaderMaterial;
+	var firstAccumBuffer, secondAccumBuffer, newFrameBuffer, bufferFlipFlop = true, mixQuad, finalQuad, screenWidth, screenHeight;
 	var frameCount = 0, frameCountTarget;
 
 	init();
 
 	function init() {
 		// hide scrollbars
-		document.documentElement.style.overflow = 'hidden';  // firefox, chrome
-    document.body.scroll = "no"; // ie only
+		document.documentElement.style.overflow = 'hidden';	// firefox, chrome
+		document.body.scroll = "no"; // ie only
 
 		// prepare renderer
 		screenWidth = window.innerWidth;
 		screenHeight = window.innerHeight;
-		renderer = new THREE.WebGLRenderer( { antialias: false } );
+		renderer = new THREE.WebGLRenderer( { alpha: true, premultipliedAlpha: false } );
 		renderer.setSize(screenWidth, screenHeight);
 		renderer.setPixelRatio(window.devicePixelRatio);
+		renderer.setClearColor(0xffffff, 0);
+		if (renderer.getPrecision() == "highp") {
+			console.log("High Precision Floats are supported and will be used.");
+		}
 
 		// set up buffers
 		var bufferSettings = {
 			minFilter: THREE.LinearFilter,
-			agFilter: THREE.LinearFilter,
+			magFilter: THREE.LinearFilter,
 			format: THREE.RGBAFormat,
 			type: THREE.FloatType
 		};
-		firstBuffer = new THREE.WebGLRenderTarget(screenWidth, screenHeight, bufferSettings);
-		secondBuffer = new THREE.WebGLRenderTarget(screenWidth, screenHeight, bufferSettings);
+		firstAccumBuffer = new THREE.WebGLRenderTarget(screenWidth, screenHeight, bufferSettings);
+		secondAccumBuffer = new THREE.WebGLRenderTarget(screenWidth, screenHeight, bufferSettings);
+		newFrameBuffer = new THREE.WebGLRenderTarget(screenWidth, screenHeight, bufferSettings);
 
 		// initialize cameras
 		mainCamera = new THREE.PerspectiveCamera(75, screenWidth / screenHeight, 0.1, 2000);
 		mainCamera.position.z = 7;
+		mixCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 		finalCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-		// prepare scene
+		// prepare scenes
 		mainScene = new THREE.Scene();
 		mainScene.add(mainCamera);
+		mixScene = new THREE.Scene();
+		mixScene.add(mixCamera);
 		finalScene = new THREE.Scene();
 		finalScene.add(finalCamera);
 
-		// load shaders -- todo: Use RawShaderMaterial
-		mainShaderMaterial = new THREE.ShaderMaterial({
+		// load shaders
+		mainSceneShaderMaterial = new THREE.ShaderMaterial({
 			uniforms: {
-				cameraPosition: { value: mainCamera.position },
-				accumulationBuffer: { type: "t", value: firstBuffer },
-				weight: { value: 0.0 },
-				resolution: { value: new THREE.Vector2(screenWidth, screenHeight) },
 				antiAliasing: { value: true },
 				aaNdcOffset: { value: new THREE.Vector2(0.0, 0.0) }
 			},
-			vertexShader: document.getElementById('vertexShader').textContent,
-			fragmentShader: document.getElementById('fragmentShader').textContent
+			vertexShader: document.getElementById('mainSceneVertexShader').textContent,
+			fragmentShader: document.getElementById('mainSceneFragmentShader').textContent
+		});
+		mixSceneShaderMaterial = new THREE.ShaderMaterial({
+			uniforms: {
+				lastFrame: { value: firstAccumBuffer.texture },
+				newFrame: { value: firstAccumBuffer.texture },
+				weight: { value: 0.0 },
+				viewport: { value: new THREE.Vector2(screenWidth, screenHeight) }
+			},
+			vertexShader: document.getElementById('mixSceneVertexShader').textContent,
+			fragmentShader: document.getElementById('mixSceneFragmentShader').textContent
 		});
 
 		// load and add teapot to the scene
@@ -120,15 +167,17 @@
 			teapot = object;
 			object.traverse(function(child) {
 							if (child instanceof THREE.Mesh) {
-								child.material = mainShaderMaterial;
+								child.material = mainSceneShaderMaterial;
 							}
 						} );
 			mainScene.add(object);
 		} );
 
 		// load quad for finalScene
-		textureQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), new THREE.MeshBasicMaterial( { color: 0xffffff } ));
-		finalScene.add(textureQuad);
+		mixQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), mixSceneShaderMaterial);
+		mixScene.add(mixQuad);
+		finalQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), new THREE.MeshBasicMaterial( { transparent: true } ));
+		finalScene.add(finalQuad);
 
 		// configure trackball controls
 		controls = new THREE.TrackballControls(mainCamera);
@@ -146,7 +195,7 @@
 		// set up gui
 		gui = new dat.GUI();
 		var guiOptions = {
-			targetFrameCount: "20",
+			targetFrameCount: "32",
 			antiAliasing: false
 		};
 		var updateTargetFrameCount = function() {
@@ -157,7 +206,7 @@
 			}
 		};
 		var updateRenderSettings = function () {
-			mainShaderMaterial.uniforms.antiAliasing.value = guiOptions.antiAliasing;
+			mainSceneShaderMaterial.uniforms.antiAliasing.value = guiOptions.antiAliasing;
 			requestRender();
 		}
 		updateTargetFrameCount();
@@ -182,28 +231,35 @@
 
 	function requestRender() {
 		console.log("Requesting new frame set!");
+		//directionalLight.position = mainCamera.position;
 		frameCount = 0;
 	}
 
 	function render() {
-		// On first frame, we read from secondBuffer and write to firstBuffer
-		mainShaderMaterial.uniforms.accumulationBuffer.value =  bufferFlipFlop ? secondBuffer : firstBuffer;
-		mainShaderMaterial.uniforms.weight.value = frameCount / (frameCount + 1);
 
-		if (mainShaderMaterial.uniforms.antiAliasing.value) {
+		if (mainSceneShaderMaterial.uniforms.antiAliasing.value) {
 				var xRand = (Math.random() - 0.5);
 				var yRand = (Math.random() - 0.5);
-				mainShaderMaterial.uniforms.aaNdcOffset.value.x = xRand / screenWidth;
-				mainShaderMaterial.uniforms.aaNdcOffset.value.y = yRand / screenHeight;
+				//console.log("xRand: ", xRand, " yRand: ", yRand);
+				mainSceneShaderMaterial.uniforms.aaNdcOffset.value.x = xRand / screenWidth;
+				mainSceneShaderMaterial.uniforms.aaNdcOffset.value.y = yRand / screenHeight;
 		}
 
+		// generate new frame from main scene
+		renderer.render(mainScene, mainCamera, newFrameBuffer);
+		mixSceneShaderMaterial.uniforms.newFrame.value = newFrameBuffer.texture;
+
+		mixSceneShaderMaterial.uniforms.lastFrame.value =	bufferFlipFlop ? secondAccumBuffer.texture : firstAccumBuffer.texture;
+		mixSceneShaderMaterial.uniforms.weight.value = frameCount / (frameCount + 1);
+
+		// mix our accum buffer with our new frame in the mix scene
 		if(bufferFlipFlop)
-			renderer.render(mainScene, mainCamera, firstBuffer, true);
+			renderer.render(mixScene, mixCamera, firstAccumBuffer, false);
 		else
-			renderer.render(mainScene, mainCamera, secondBuffer, true);
+			renderer.render(mixScene, mixCamera, secondAccumBuffer, false);
 
-		textureQuad.material.map = !bufferFlipFlop ? secondBuffer : firstBuffer;
-
+		// render the output from the mix scene to our final scene and
+		finalQuad.material.map = !bufferFlipFlop ? secondAccumBuffer.texture : firstAccumBuffer.texture;
 		renderer.render(finalScene, finalCamera);
 
 		bufferFlipFlop = !bufferFlipFlop;
@@ -213,10 +269,10 @@
 		var screenWidth = window.innerWidth, screenHeight = window.innerHeight;
 		mainCamera.aspect = screenWidth / screenHeight;
 		renderer.setSize(screenWidth, screenHeight);
-		firstBuffer.setSize(screenWidth, screenHeight);
-		secondBuffer.setSize(screenWidth, screenHeight);
-		mainShaderMaterial.uniforms.resolution.value.x = screenWidth;
-		mainShaderMaterial.uniforms.resolution.value.y = screenHeight;
+		firstAccumBuffer.setSize(screenWidth, screenHeight);
+		secondAccumBuffer.setSize(screenWidth, screenHeight);
+		mixSceneShaderMaterial.uniforms.viewport.value.x = screenWidth;
+		mixSceneShaderMaterial.uniforms.viewport.value.y = screenHeight;
 		mainCamera.updateProjectionMatrix();
 		controls.handleResize();
 		requestRender();
