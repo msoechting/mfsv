@@ -2,12 +2,17 @@
 <html>
 	<head>
 		<meta charset="utf-8" />
-		<title>mfsv</title>
+		<title>mfsv examples</title>
 		<style>
 			body {
 				margin: 0;
 				background-image: url("./res/bg.png"); /* Background pattern from subtlepatterns.com */
-		 }
+			}
+			canvas {
+				border-style: dashed;
+				border-color: #000000;
+				border-width: 2px;
+			}
 		</style>
 	</head>
 	<body>
@@ -18,264 +23,13 @@
 	<script src="./js/OBJLoader.js"></script>
 	<script src="./js/TrackballControls.js"></script>
 
-	<!-- Shaders for original/main scene -->
-	<script type="x-shader/x-vertex" id="mainSceneVertexShader">
-		// switch on high precision floats
-		#ifdef GL_ES
-		precision highp float;
-		#endif
+	<script src="./js/mfsv.js"></script>
 
-		varying vec3 vNormal;
-		uniform bool antiAliasing;
-		uniform vec2 aaNdcOffset;
+	<h1>viewer #1 (will get id #1)</h1>
+	&lt;div class="mfsviewer" objPath="obj/teapot.obj" width="700" height="500"&gt;
+	<div class="mfsviewer" objPath="obj/teapot.obj" width="700" height="500"></div>
+	<h1>viewer #2 (will get id #2)</h1>
+	&lt;div class="mfsviewer" objPath="obj/teapot.obj" width="500" height="300"&gt;
+	<div class="mfsviewer" objPath="obj/teapot.obj" width="500" height="300"></div>
 
-		void main() {
-				vNormal = normal;
-				vec4 ndcVertex = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-				if (antiAliasing) {
-					ndcVertex.xy += aaNdcOffset * ndcVertex.w;
-				}
-				gl_Position = ndcVertex;
-			}
-	</script>
-
-	<script type="x-shader/x-fragment" id="mainSceneFragmentShader">
-		// switch on high precision floats
-		#ifdef GL_ES
-	  precision highp float;
-	  #endif
-
-		varying vec3 vNormal;
-
-		void main() {
-				float dProd = max(0.0, dot(vNormal, normalize(cameraPosition)));
-				gl_FragColor = vec4(dProd, dProd, dProd, 1.0);
-			}
-
-	</script>
-
-	<!-- Shaders for final scene -->
-	<script type="x-shader/x-vertex" id="mixSceneVertexShader">
-		// switch on high precision floats
-		#ifdef GL_ES
-	  precision highp float;
-	  #endif
-
-		void main() {
-				gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-			}
-  </script>
-
-	<script type="x-shader/x-fragment" id="mixSceneFragmentShader">
-		// switch on high precision floats
-		#ifdef GL_ES
-	  precision highp float;
-	  #endif
-
-		uniform vec2 viewport;
-		uniform float weight;
-		uniform sampler2D newFrame;
-		uniform sampler2D lastFrame;
-
-		void main() {
-				vec4 newColor = texture2D(newFrame, gl_FragCoord.xy / viewport.xy);
-				vec4 accColor = texture2D(lastFrame, gl_FragCoord.xy / viewport.xy);
-				gl_FragColor = mix(newColor, accColor, weight);
-			}
-	</script>
-
-	<script type="text/javascript">
-
-	var mainCamera, mixCamera, finalCamera, controls, mainScene, mixScene, finalScene, renderer, mixSceneShaderMaterial;
-	var firstAccumBuffer, secondAccumBuffer, newFrameBuffer, bufferFlipFlop = true, mixQuad, finalQuad, screenWidth, screenHeight;
-	var frameCount = 0, frameCountTarget;
-
-	init();
-
-	function init() {
-		// hide scrollbars
-		document.documentElement.style.overflow = 'hidden';	// firefox, chrome
-		document.body.scroll = "no"; // ie only
-
-		// prepare renderer
-		screenWidth = window.innerWidth;
-		screenHeight = window.innerHeight;
-		renderer = new THREE.WebGLRenderer( { alpha: true, premultipliedAlpha: false } );
-		renderer.setSize(screenWidth, screenHeight);
-		renderer.setPixelRatio(window.devicePixelRatio);
-		renderer.setClearColor(0xffffff, 0);
-		if (renderer.getPrecision() == "highp") {
-			console.log("High Precision Floats are supported and will be used.");
-		}
-
-		// set up buffers
-		var bufferSettings = {
-			minFilter: THREE.LinearFilter,
-			magFilter: THREE.LinearFilter,
-			format: THREE.RGBAFormat,
-			type: THREE.FloatType
-		};
-		firstAccumBuffer = new THREE.WebGLRenderTarget(screenWidth, screenHeight, bufferSettings);
-		secondAccumBuffer = new THREE.WebGLRenderTarget(screenWidth, screenHeight, bufferSettings);
-		newFrameBuffer = new THREE.WebGLRenderTarget(screenWidth, screenHeight, bufferSettings);
-
-		// initialize cameras
-		mainCamera = new THREE.PerspectiveCamera(75, screenWidth / screenHeight, 0.1, 2000);
-		mainCamera.position.z = 7;
-		mixCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-		finalCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-
-		// prepare scenes
-		mainScene = new THREE.Scene();
-		mainScene.add(mainCamera);
-		mixScene = new THREE.Scene();
-		mixScene.add(mixCamera);
-		finalScene = new THREE.Scene();
-		finalScene.add(finalCamera);
-
-		// load shaders
-		mainSceneShaderMaterial = new THREE.ShaderMaterial({
-			uniforms: {
-				antiAliasing: { value: true },
-				aaNdcOffset: { value: new THREE.Vector2(0.0, 0.0) }
-			},
-			vertexShader: document.getElementById('mainSceneVertexShader').textContent,
-			fragmentShader: document.getElementById('mainSceneFragmentShader').textContent
-		});
-		mixSceneShaderMaterial = new THREE.ShaderMaterial({
-			uniforms: {
-				lastFrame: { value: firstAccumBuffer.texture },
-				newFrame: { value: firstAccumBuffer.texture },
-				weight: { value: 0.0 },
-				viewport: { value: new THREE.Vector2(screenWidth, screenHeight) }
-			},
-			vertexShader: document.getElementById('mixSceneVertexShader').textContent,
-			fragmentShader: document.getElementById('mixSceneFragmentShader').textContent
-		});
-
-		// load and add teapot to the scene
-		var manager = new THREE.LoadingManager();
-		manager.onProgress = function (item, loaded, total) {
-			console.log("Loaded item " + item + " (" + loaded + " of " + total + " objects)");
-		};
-		manager.onLoad = function () {
-			console.log("Loading finished!");
-			animate();
-		};
-		var loader = new THREE.OBJLoader(manager);
-		loader.load('obj/teapot.obj', function (object) {
-			teapot = object;
-			object.traverse(function(child) {
-							if (child instanceof THREE.Mesh) {
-								child.material = mainSceneShaderMaterial;
-							}
-						} );
-			mainScene.add(object);
-		} );
-
-		// load quad for finalScene
-		mixQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), mixSceneShaderMaterial);
-		mixScene.add(mixQuad);
-		finalQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), new THREE.MeshBasicMaterial( { transparent: true } ));
-		finalScene.add(finalQuad);
-
-		// configure trackball controls
-		controls = new THREE.TrackballControls(mainCamera);
-		controls.addEventListener('change', requestRender);
-		controls.target.set(0, 0, 0);
-		controls.rotateSpeed = 5.0;
-		controls.zoomSpeed = 1.2;
-		controls.panSpeed = 0.8;
-		controls.noZoom = false;
-		controls.noPan = false;
-		controls.staticMoving = true;
-		controls.dynamicDampingFactor = 0.3;
-		controls.keys = [ 65, 83, 68 ];
-
-		// set up gui
-		gui = new dat.GUI();
-		var guiOptions = {
-			targetFrameCount: "32",
-			antiAliasing: false
-		};
-		var updateTargetFrameCount = function() {
-			var newFrameCountTarget = parseFloat(guiOptions.targetFrameCount).toFixed(0);
-			if (newFrameCountTarget != frameCountTarget && newFrameCountTarget > 0) {
-				frameCountTarget = newFrameCountTarget;
-				requestRender();
-			}
-		};
-		var updateRenderSettings = function () {
-			mainSceneShaderMaterial.uniforms.antiAliasing.value = guiOptions.antiAliasing;
-			requestRender();
-		}
-		updateTargetFrameCount();
-		updateRenderSettings();
-		gui.add(guiOptions, "targetFrameCount").onChange(updateTargetFrameCount);
-		gui.add(guiOptions, "antiAliasing", true).onChange(updateRenderSettings);
-
-		// attach the render-supplied DOM element
-		document.body.appendChild(renderer.domElement);
-		window.addEventListener('resize', onWindowResize, false);
-	}
-
-	function animate() {
-		requestAnimationFrame(animate);
-		controls.update();
-		if (frameCount < frameCountTarget) {
-			render();
-			frameCount++;
-			console.log("Rendered ", frameCount, "/", frameCountTarget, " frames");
-		}
-	}
-
-	function requestRender() {
-		console.log("Requesting new frame set!");
-		//directionalLight.position = mainCamera.position;
-		frameCount = 0;
-	}
-
-	function render() {
-
-		if (mainSceneShaderMaterial.uniforms.antiAliasing.value) {
-				var xRand = (Math.random() - 0.5);
-				var yRand = (Math.random() - 0.5);
-				//console.log("xRand: ", xRand, " yRand: ", yRand);
-				mainSceneShaderMaterial.uniforms.aaNdcOffset.value.x = xRand / screenWidth;
-				mainSceneShaderMaterial.uniforms.aaNdcOffset.value.y = yRand / screenHeight;
-		}
-
-		// generate new frame from main scene
-		renderer.render(mainScene, mainCamera, newFrameBuffer);
-		mixSceneShaderMaterial.uniforms.newFrame.value = newFrameBuffer.texture;
-
-		mixSceneShaderMaterial.uniforms.lastFrame.value =	bufferFlipFlop ? secondAccumBuffer.texture : firstAccumBuffer.texture;
-		mixSceneShaderMaterial.uniforms.weight.value = frameCount / (frameCount + 1);
-
-		// mix our accum buffer with our new frame in the mix scene
-		if(bufferFlipFlop)
-			renderer.render(mixScene, mixCamera, firstAccumBuffer, false);
-		else
-			renderer.render(mixScene, mixCamera, secondAccumBuffer, false);
-
-		// render the output from the mix scene to our final scene and
-		finalQuad.material.map = !bufferFlipFlop ? secondAccumBuffer.texture : firstAccumBuffer.texture;
-		renderer.render(finalScene, finalCamera);
-
-		bufferFlipFlop = !bufferFlipFlop;
-	}
-
-	function onWindowResize() {
-		var screenWidth = window.innerWidth, screenHeight = window.innerHeight;
-		mainCamera.aspect = screenWidth / screenHeight;
-		renderer.setSize(screenWidth, screenHeight);
-		firstAccumBuffer.setSize(screenWidth, screenHeight);
-		secondAccumBuffer.setSize(screenWidth, screenHeight);
-		mixSceneShaderMaterial.uniforms.viewport.value.x = screenWidth;
-		mixSceneShaderMaterial.uniforms.viewport.value.y = screenHeight;
-		mainCamera.updateProjectionMatrix();
-		controls.handleResize();
-		requestRender();
-	}
-	</script>
 </html>
