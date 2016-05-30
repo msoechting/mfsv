@@ -48,8 +48,8 @@ function MFSViewer(targetDiv, width, height, objPath) {
 
 	this.render = function() {
 		if (this.mainSceneShaderMaterial.uniforms.antiAliasing.value) {
-			var xRand = kernel[Math.floor(Math.random() * 255)] / 255;
-			var yRand = kernel[Math.floor(Math.random() * 255)] / 255; //1*(Math.random() - 0.5);
+			var xRand = kernel[this.frameCount % 255] / 255 - 0.5;
+			var yRand = kernel[this.frameCount % 255] / 255 - 0.5; //1*(Math.random() - 0.5);
 			this.mainSceneShaderMaterial.uniforms.aaNdcOffset.value.x = xRand / this.width;
 			this.mainSceneShaderMaterial.uniforms.aaNdcOffset.value.y = yRand / this.height;
 		}
