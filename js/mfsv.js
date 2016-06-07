@@ -31,8 +31,8 @@ function MFSViewer(targetDiv, width, height, objPath) {
 
 	this.render = function() {
 		if (this.mainSceneShaderMaterial.uniforms.antiAliasing.value) {
-			var xRand = Math.random() - 0.5;//kernel[this.frameCount % 255] / 255 - 0.5;
-			var yRand = Math.random() - 0.5;//kernel[this.frameCount % 255] / 255 - 0.5; //1*(Math.random() - 0.5);
+			var xRand = Math.random() - 0.5;
+			var yRand = Math.random() - 0.5;
 			this.mainSceneShaderMaterial.uniforms.aaNdcOffset.value.x = 2*this.aaNDCOffset*xRand / this.width;
 			this.mainSceneShaderMaterial.uniforms.aaNdcOffset.value.y = 2*this.aaNDCOffset*yRand / this.height;
 		}
@@ -70,16 +70,24 @@ function MFSViewer(targetDiv, width, height, objPath) {
 	this.renderer.setSize(this.width, this.height);
 	this.renderer.setPixelRatio(window.devicePixelRatio);
 	this.renderer.setClearColor(0x000000, 0);
-	if (this.renderer.getPrecision() == "highp") {
-		this.log("High Precision Floats are supported and will be used.");
-	}
 
 	// set up buffers
+	var texturePrecision;
+	if (this.renderer.context.getExtension('OES_texture_float') !== null) {
+		texturePrecision = THREE.FloatType;
+		this.log('FLOAT texture precision supported and will be used.');
+	} else if (this.renderer.context.getExtension('OES_texture_half_float') !== null) {
+		texturePrecision = THREE.HalfFloatType;
+		this.log('HALFFLOAT texture precision supported and will be used.');
+	} else {
+		texturePrecision = THREE.UnsignedByte;
+		this.log('UNSIGNED BYTE texture precision will be used.');
+	}
 	var bufferSettings = {
 		minFilter: THREE.NearestFilter,
 		magFilter: THREE.NearestFilter,
 		format: THREE.RGBAFormat,
-		type: THREE.FloatType
+		type: texturePrecision
 	};
 	this.firstAccumBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
 	this.secondAccumBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
