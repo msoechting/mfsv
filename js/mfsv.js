@@ -58,8 +58,10 @@ function MFSViewer(div, settings) {
 		if (myself.fixedSize) {
 				return;
 		}
-		var w = myself.div.offsetParent.offsetWidth * myself.dpi, h = myself.div.offsetParent.offsetHeight * myself.dpi;
+		var w = myself.div.offsetParent.offsetWidth, h = myself.div.offsetParent.offsetHeight;
 		myself.renderer.setSize(w, h);
+		w *= myself.dpi;
+		h *= myself.dpi;
 		myself.mainCamera.aspect = w / h;
 		myself.mainCamera.updateProjectionMatrix();
 		myself.firstAccumBuffer.setSize(w, h);
