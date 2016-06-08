@@ -4,7 +4,7 @@ A prototypical WebGL-based Multi-frame Sampling viewer for 3D scenes. Currently 
 
 ## How to embed the viewer
 ### global style
-<pre><script>
+<pre><script
   var renderSettings = {
     "objPath": "obj/teapot.obj",
     "antiAliasing": true
