@@ -10,6 +10,6 @@ A prototypical WebGL-based Multi-frame Sampling viewer for 3D scenes. Currently 
     "antiAliasing": true
   };
   &lt;/script&gt;
-  &lt;div class="mfsviewer"&gt;&lt;/div&gt;&lt;/pre&gt;
+  &lt;div class="mfsviewer"&gt;&lt;/div&gt;</pre>
 ### local style
 implemented, but not usable at the moment
