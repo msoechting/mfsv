@@ -1,0 +1,29 @@
+# Site settings
+timezone: Europe/Berlin
+
+baseurl: '/mfsv' # the subpath of your site, e.g. /blog/
+url: 'http://emberflare.github.io' # the base hostname & protocol for your site
+
+title: 'WebGL-based Multi-frame Sampling Viewer Demos'
+submission: 'Maximilian Söchting, Daniel Limberger'
+
+languages: [ 'en', 'de' ]
+category-list: [ demos ]
+
+# Handling Reading
+safe: true
+encoding: utf-8
+
+# Build settings
+markdown: kramdown
+
+# Outputting
+exclude: [
+  'backup',
+  'vendor',
+  'LICENSE',
+  'README.md']
+
+# CSS Minification
+sass:
+  style: compressed

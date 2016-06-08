@@ -3,11 +3,11 @@ var nextID = 1;
 window.onload = function() {
 	var divs = document.getElementsByClassName("mfsviewer");
 	for (var i = 0; i < divs.length; i++) {
-		new MFSViewer(divs[i], divs[i].getAttribute("width"), divs[i].getAttribute("height"), divs[i].getAttribute("objPath"));
+		new MFSViewer(divs[i], divs[i].renderSettings ? divs[i].renderSettings : window.renderSettings);
 	}
 }
 
-function MFSViewer(targetDiv, width, height, objPath) {
+function MFSViewer(div, settings) {
 	var myself = this;
 
 	this.animate = function() {
@@ -33,8 +33,8 @@ function MFSViewer(targetDiv, width, height, objPath) {
 		if (this.mainSceneShaderMaterial.uniforms.antiAliasing.value) {
 			var xRand = Math.random() - 0.5;
 			var yRand = Math.random() - 0.5;
-			this.mainSceneShaderMaterial.uniforms.aaNdcOffset.value.x = 2*xRand / this.width;
-			this.mainSceneShaderMaterial.uniforms.aaNdcOffset.value.y = 2*yRand / this.height;
+			this.mainSceneShaderMaterial.uniforms.aaNdcOffset.value.x = 2 * xRand / (this.width);
+			this.mainSceneShaderMaterial.uniforms.aaNdcOffset.value.y = 2 * yRand / (this.height);
 		}
 
 		// feed the uniforms
@@ -54,18 +54,42 @@ function MFSViewer(targetDiv, width, height, objPath) {
 		this.bufferFlipFlop = !this.bufferFlipFlop;
 	}
 
-	// set misc vars
-	this.width = width;
-	this.height = height;
+	this.resize = function() {
+		if (myself.fixedSize) {
+				return;
+		}
+		var w = myself.div.offsetParent.offsetWidth * myself.dpi, h = myself.div.offsetParent.offsetHeight * myself.dpi;
+		myself.renderer.setSize(w, h);
+		myself.mainCamera.aspect = w / h;
+		myself.mainCamera.updateProjectionMatrix();
+		myself.firstAccumBuffer.setSize(w, h);
+		myself.secondAccumBuffer.setSize(w, h);
+		myself.mainSceneShaderMaterial.uniforms.viewport.value = new THREE.Vector2(w, h);
+		myself.width = w;
+		myself.height = h;
+		myself.requestRender();
+	}
+
+	// set width & height
+	this.fixedSize = !(settings.width == undefined || settings.height == undefined);
+	this.width = settings.width ? settings.width : div.offsetParent.offsetWidth;
+	this.height = settings.height ? settings.height : div.offsetParent.offsetHeight;
+	window.addEventListener('resize', this.resize, false);
+	this.dpi = window.devicePixelRatio;
+
+	// misc vars
 	this.frameCount = 0;
 	this.frameCountTarget = 64;
 	this.bufferFlipFlop = true;
 	this.id = nextID++;
 
 	// prepare renderer
+
 	this.renderer = new THREE.WebGLRenderer( { alpha: true } );
 	this.renderer.setSize(this.width, this.height);
-	this.renderer.setPixelRatio(window.devicePixelRatio);
+	this.renderer.setPixelRatio(this.dpi);
+	this.width = this.width * this.dpi;
+	this.height = this.height * this.dpi;
 	this.renderer.setClearColor(0x000000, 0);
 
 	// set up buffers
@@ -77,7 +101,7 @@ function MFSViewer(targetDiv, width, height, objPath) {
 		texturePrecision = THREE.HalfFloatType;
 		this.log('HALFFLOAT texture precision supported and will be used.');
 	} else {
-		texturePrecision = THREE.UnsignedByte;
+		texturePrecision = THREE.UnsignedByteType;
 		this.log('UNSIGNED BYTE texture precision will be used.');
 	}
 	var bufferSettings = {
@@ -88,7 +112,6 @@ function MFSViewer(targetDiv, width, height, objPath) {
 	};
 	this.firstAccumBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
 	this.secondAccumBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
-	this.newFrameBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
 
 	// initialize cameras
 	this.mainCamera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.1, 2000);
@@ -142,7 +165,7 @@ function MFSViewer(targetDiv, width, height, objPath) {
 	this.mainSceneShaderMaterial = new THREE.ShaderMaterial({
 		uniforms: {
 			accBuffer: { value: this.firstAccumBuffer.texture },
-			antiAliasing: { value: true },
+			antiAliasing: { value: settings.antiAliasing != undefined ? settings.antiAliasing : true },
 			weight: { value: 0.0 },
 			viewport: { value: new THREE.Vector2(this.width, this.height) },
 			aaNdcOffset: { value: new THREE.Vector2(0.0, 0.0) }
@@ -162,14 +185,14 @@ function MFSViewer(targetDiv, width, height, objPath) {
 		animate();
 	};
 
-	var loader = new THREE.OBJLoader(manager), material = this.mainSceneShaderMaterial, targetScene = this.mainScene;
-	loader.load(objPath, function (object) {
+	var loader = new THREE.OBJLoader(manager);
+	loader.load(settings.objPath, function (object) {
 		object.traverse(function(child) {
 			if (child instanceof THREE.Mesh) {
-				child.material = material;
+				child.material = myself.mainSceneShaderMaterial;
 			}
 		} );
-		targetScene.add(object);
+		myself.mainScene.add(object);
 	} );
 
 	// load quad for finalScene
@@ -177,7 +200,8 @@ function MFSViewer(targetDiv, width, height, objPath) {
 	this.finalScene.add(this.finalQuad);
 
 	// attach the render-supplied DOM element
-	targetDiv.appendChild(this.renderer.domElement);
+	div.appendChild(this.renderer.domElement);
+	this.div = div;
 
 	// configure trackball controls
 	this.controls = new THREE.TrackballControls(this.mainCamera, this.renderer.domElement);
@@ -192,13 +216,14 @@ function MFSViewer(targetDiv, width, height, objPath) {
 	this.controls.dynamicDampingFactor = 0.3;
 	this.controls.keys = [ 65, 83, 68 ];
 
+
 	// set up gui
 	this.gui = new dat.GUI();
 	this.gui.width = 300;
 	var guiOptions = {
 		"ViewerID(ReadOnly)": myself.id,
 		targetFrameCount: "64",
-		antiAliasing: true
+		antiAliasing: this.mainSceneShaderMaterial.uniforms.antiAliasing.value
 	};
 	var updateTargetFrameCount = function() {
 		var newFrameCountTarget = parseFloat(guiOptions.targetFrameCount).toFixed(0);
@@ -215,5 +240,5 @@ function MFSViewer(targetDiv, width, height, objPath) {
 	updateRenderSettings();
 	this.gui.add(guiOptions, "ViewerID(ReadOnly)");
 	this.gui.add(guiOptions, "targetFrameCount").onChange(updateTargetFrameCount);
-	this.gui.add(guiOptions, "antiAliasing", true).onChange(updateRenderSettings);
+	this.gui.add(guiOptions, "antiAliasing").onChange(updateRenderSettings);
 }
