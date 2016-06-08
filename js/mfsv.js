@@ -33,8 +33,8 @@ function MFSViewer(targetDiv, width, height, objPath) {
 		if (this.mainSceneShaderMaterial.uniforms.antiAliasing.value) {
 			var xRand = Math.random() - 0.5;
 			var yRand = Math.random() - 0.5;
-			this.mainSceneShaderMaterial.uniforms.aaNdcOffset.value.x = 2*this.aaNDCOffset*xRand / this.width;
-			this.mainSceneShaderMaterial.uniforms.aaNdcOffset.value.y = 2*this.aaNDCOffset*yRand / this.height;
+			this.mainSceneShaderMaterial.uniforms.aaNdcOffset.value.x = 2*xRand / this.width;
+			this.mainSceneShaderMaterial.uniforms.aaNdcOffset.value.y = 2*yRand / this.height;
 		}
 
 		// generate new frame from main scene
@@ -235,7 +235,6 @@ function MFSViewer(targetDiv, width, height, objPath) {
 	var guiOptions = {
 		"ViewerID(ReadOnly)": myself.id,
 		targetFrameCount: "64",
-		"aaNDCOffset[-x;x]": 0.5,
 		antiAliasing: true
 	};
 	var updateTargetFrameCount = function() {
@@ -245,19 +244,13 @@ function MFSViewer(targetDiv, width, height, objPath) {
 			myself.requestRender();
 		}
 	};
-	var updateaaNDCOffset = function() {
-		myself.aaNDCOffset = guiOptions["aaNDCOffset[-x;x]"];
-		myself.requestRender();
-	};
 	var updateRenderSettings = function () {
 		myself.mainSceneShaderMaterial.uniforms.antiAliasing.value = guiOptions.antiAliasing;
 		myself.requestRender();
 	}
 	updateTargetFrameCount();
 	updateRenderSettings();
-	updateaaNDCOffset();
 	this.gui.add(guiOptions, "ViewerID(ReadOnly)");
 	this.gui.add(guiOptions, "targetFrameCount").onChange(updateTargetFrameCount);
-	this.gui.add(guiOptions, "aaNDCOffset[-x;x]").onChange(updateaaNDCOffset);
 	this.gui.add(guiOptions, "antiAliasing", true).onChange(updateRenderSettings);
 }
