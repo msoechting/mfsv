@@ -37,17 +37,20 @@ function MFSViewer(div, settings) {
 			this.mainSceneShaderMaterial.uniforms.aaNdcOffset.value.y = 2 * yRand / (this.height);
 		}
 
-		// feed the uniforms
-		this.mainSceneShaderMaterial.uniforms.accBuffer.value = this.bufferFlipFlop ? this.secondAccumBuffer.texture : this.firstAccumBuffer.texture;
-		this.mainSceneShaderMaterial.uniforms.weight.value = this.frameCount / (this.frameCount + 1);
+		// generate new frame from main scene
+		this.renderer.render(this.mainScene, this.mainCamera, this.newFrameBuffer);
+		this.mixSceneShaderMaterial.uniforms.newFrame.value = this.newFrameBuffer.texture;
 
-		// accumulate the newest frame
+		this.mixSceneShaderMaterial.uniforms.lastFrame.value = this.bufferFlipFlop ? this.secondAccumBuffer.texture : this.firstAccumBuffer.texture;
+		this.mixSceneShaderMaterial.uniforms.weight.value = this.frameCount / (this.frameCount + 1);
+
+		// mix our accum buffer with our new frame in the mix scene
 		if(this.bufferFlipFlop)
-			this.renderer.render(this.mainScene, this.mainCamera, this.firstAccumBuffer, false);
+			this.renderer.render(this.mixScene, this.mixCamera, this.firstAccumBuffer, false);
 		else
-			this.renderer.render(this.mainScene, this.mainCamera, this.secondAccumBuffer, false);
+			this.renderer.render(this.mixScene, this.mixCamera, this.secondAccumBuffer, false);
 
-		// render the current accumulation buffer to the view buffer
+		// render the output from the mix scene to our final scene and
 		this.finalQuad.material.map = !this.bufferFlipFlop ? this.secondAccumBuffer.texture : this.firstAccumBuffer.texture;
 		this.renderer.render(this.finalScene, this.finalCamera);
 
@@ -60,8 +63,8 @@ function MFSViewer(div, settings) {
 		}
 		var w = myself.div.offsetParent.offsetWidth, h = myself.div.offsetParent.offsetHeight;
 		myself.renderer.setSize(w, h);
-		w *= myself.dpi;
-		h *= myself.dpi;
+		w *= myself.dpr;
+		h *= myself.dpr;
 		myself.mainCamera.aspect = w / h;
 		myself.mainCamera.updateProjectionMatrix();
 		myself.firstAccumBuffer.setSize(w, h);
@@ -77,7 +80,7 @@ function MFSViewer(div, settings) {
 	this.width = settings.width ? settings.width : div.offsetParent.offsetWidth;
 	this.height = settings.height ? settings.height : div.offsetParent.offsetHeight;
 	window.addEventListener('resize', this.resize, false);
-	this.dpi = window.devicePixelRatio;
+	this.dpr = window.devicePixelRatio;
 
 	// misc vars
 	this.frameCount = 0;
@@ -86,12 +89,11 @@ function MFSViewer(div, settings) {
 	this.id = nextID++;
 
 	// prepare renderer
-
 	this.renderer = new THREE.WebGLRenderer( { alpha: true } );
 	this.renderer.setSize(this.width, this.height);
-	this.renderer.setPixelRatio(this.dpi);
-	this.width = this.width * this.dpi;
-	this.height = this.height * this.dpi;
+	this.renderer.setPixelRatio(this.dpr);
+	this.width = this.width * this.dpr;
+	this.height = this.height * this.dpr;
 	this.renderer.setClearColor(0x000000, 0);
 
 	// set up buffers
@@ -114,15 +116,19 @@ function MFSViewer(div, settings) {
 	};
 	this.firstAccumBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
 	this.secondAccumBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
+	this.newFrameBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
 
 	// initialize cameras
 	this.mainCamera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.1, 2000);
 	this.mainCamera.position.z = 7;
+	this.mixCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 	this.finalCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
 	// prepare scenes
 	this.mainScene = new THREE.Scene();
 	this.mainScene.add(this.mainCamera);
+	this.mixScene = new THREE.Scene();
+	this.mixScene.add(this.mixCamera);
 	this.finalScene = new THREE.Scene();
 	this.finalScene.add(this.finalCamera);
 
@@ -153,27 +159,56 @@ function MFSViewer(div, settings) {
 		#endif
 
 		varying vec3 vNormal;
-		uniform vec2 viewport;
-		uniform float weight;
-		uniform sampler2D accBuffer;
 
 		void main() {
 				float dProd = max(0.0, dot(vNormal, normalize(cameraPosition)));
-				vec4 newFragColor = vec4(vec3(dProd), 1.0);
-				vec4 accColor = texture2D(accBuffer, gl_FragCoord.xy / viewport.xy);
-				gl_FragColor = mix(newFragColor, accColor, weight);
+				gl_FragColor = vec4(dProd, dProd, dProd, 1.0);
+			}
+		`;
+	var mixSceneVertexShader = `
+		// switch on high precision floats
+		#ifdef GL_ES
+		precision highp float;
+		#endif
+
+		void main() {
+				gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+			}
+		`;
+	var mixSceneFragmentShader = `
+		// switch on high precision floats
+		#ifdef GL_ES
+		precision highp float;
+		#endif
+
+		uniform vec2 viewport;
+		uniform float weight;
+		uniform sampler2D newFrame;
+		uniform sampler2D lastFrame;
+
+		void main() {
+				vec4 newColor = texture2D(newFrame, gl_FragCoord.xy / viewport.xy);
+				vec4 accColor = texture2D(lastFrame, gl_FragCoord.xy / viewport.xy);
+				gl_FragColor = mix(newColor, accColor, weight);
 			}
 		`;
 	this.mainSceneShaderMaterial = new THREE.ShaderMaterial({
 		uniforms: {
-			accBuffer: { value: this.firstAccumBuffer.texture },
 			antiAliasing: { value: settings.antiAliasing != undefined ? settings.antiAliasing : true },
-			weight: { value: 0.0 },
-			viewport: { value: new THREE.Vector2(this.width, this.height) },
 			aaNdcOffset: { value: new THREE.Vector2(0.0, 0.0) }
 		},
 		vertexShader: mainSceneVertexShader,
 		fragmentShader: mainSceneFragmentShader
+	});
+	this.mixSceneShaderMaterial = new THREE.ShaderMaterial({
+		uniforms: {
+			lastFrame: { value: this.firstAccumBuffer.texture },
+			newFrame: { value: this.firstAccumBuffer.texture },
+			weight: { value: 0.0 },
+			viewport: { value: new THREE.Vector2(this.width, this.height) }
+		},
+		vertexShader: mixSceneVertexShader,
+		fragmentShader: mixSceneFragmentShader
 	});
 
 	// load and add our object to the scene
@@ -198,6 +233,8 @@ function MFSViewer(div, settings) {
 	} );
 
 	// load quad for finalScene
+	this.mixQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), this.mixSceneShaderMaterial);
+	this.mixScene.add(this.mixQuad);
 	this.finalQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), new THREE.MeshBasicMaterial( { transparent: true } ));
 	this.finalScene.add(this.finalQuad);
 
