@@ -69,7 +69,8 @@ function MFSViewer(div, settings) {
 		myself.mainCamera.updateProjectionMatrix();
 		myself.firstAccumBuffer.setSize(w, h);
 		myself.secondAccumBuffer.setSize(w, h);
-		myself.mainSceneShaderMaterial.uniforms.viewport.value = new THREE.Vector2(w, h);
+		myself.newFrameBuffer.setSize(w, h);
+		myself.mixSceneShaderMaterial.uniforms.viewport.value = new THREE.Vector2(w, h);
 		myself.width = w;
 		myself.height = h;
 		myself.requestRender();
