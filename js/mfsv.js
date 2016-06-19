@@ -9,6 +9,7 @@ window.onload = function() {
 
 function MFSViewer(div, settings) {
 	var myself = this;
+	window.mfsv = this;
 
 	this.animate = function() {
 		requestAnimationFrame(myself.animate);
@@ -16,7 +17,7 @@ function MFSViewer(div, settings) {
 		if (myself.frameCount < myself.frameCountTarget) {
 			myself.render();
 			myself.frameCount++;
-			myself.log("Rendered " + myself.frameCount + "/" + myself.frameCountTarget + " frames");
+			//myself.log("Rendered " + myself.frameCount + "/" + myself.frameCountTarget + " frames");
 		}
 	};
 
@@ -99,10 +100,10 @@ function MFSViewer(div, settings) {
 
 	// set up buffers
 	var texturePrecision;
-	if (this.renderer.context.getExtension('OES_texture_float') !== null) {
+	if (this.renderer.context.getExtension('WEBGL_color_buffer_float') !== null ) {
 		texturePrecision = THREE.FloatType;
 		this.log('FLOAT texture precision supported and will be used.');
-	} else if (this.renderer.context.getExtension('OES_texture_half_float') !== null) {
+	} else if (this.renderer.context.getExtension('EXT_color_buffer_half_float') !== null) {
 		texturePrecision = THREE.HalfFloatType;
 		this.log('HALFFLOAT texture precision supported and will be used.');
 	} else {
@@ -134,65 +135,96 @@ function MFSViewer(div, settings) {
 	this.finalScene.add(this.finalCamera);
 
 	// load shaders
-	var mainSceneVertexShader = `
-		// switch on high precision floats
-		#ifdef GL_ES
-		precision highp float;
-		#endif
-
-		varying vec3 vNormal;
-		uniform bool antiAliasing;
-		uniform vec2 aaNdcOffset;
-
-		void main() {
-				vNormal = normal;
-				vec4 ndcVertex = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-				if (antiAliasing) {
-					ndcVertex.xy += aaNdcOffset * ndcVertex.w;
-				}
-				gl_Position = ndcVertex;
-			}
-		`;
-	var mainSceneFragmentShader = `
-		// switch on high precision floats
-		#ifdef GL_ES
-		precision highp float;
-		#endif
-
-		varying vec3 vNormal;
-
-		void main() {
-				float dProd = max(0.0, dot(vNormal, normalize(cameraPosition)));
-				gl_FragColor = vec4(dProd, dProd, dProd, 1.0);
-			}
-		`;
-	var mixSceneVertexShader = `
-		// switch on high precision floats
-		#ifdef GL_ES
-		precision highp float;
-		#endif
-
-		void main() {
-				gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-			}
-		`;
-	var mixSceneFragmentShader = `
-		// switch on high precision floats
-		#ifdef GL_ES
-		precision highp float;
-		#endif
-
-		uniform vec2 viewport;
-		uniform float weight;
-		uniform sampler2D newFrame;
-		uniform sampler2D lastFrame;
-
-		void main() {
-				vec4 newColor = texture2D(newFrame, gl_FragCoord.xy / viewport.xy);
-				vec4 accColor = texture2D(lastFrame, gl_FragCoord.xy / viewport.xy);
-				gl_FragColor = mix(newColor, accColor, weight);
-			}
-		`;
+	var mainSceneVertexShader = " \n"+
+		"// switch on high precision floats \n"+
+		"#ifdef GL_ES \n"+
+		"precision highp float; \n"+
+		"#endif \n"+
+ 		"\n"+
+		"varying vec3 vNormal; \n"+
+		"uniform bool antiAliasing; \n"+
+		"uniform vec2 aaNdcOffset; \n"+
+	 	"\n"+
+		"void main() { \n"+
+		"		vNormal = normal; \n"+
+		"		vec4 ndcVertex = projectionMatrix * modelViewMatrix * vec4(position, 1.0); \n"+
+		"		if (antiAliasing) { \n"+
+		"			ndcVertex.xy += aaNdcOffset * ndcVertex.w; \n"+
+		"		} \n"+
+		"		gl_Position = ndcVertex; \n"+
+		"}";
+	var mainSceneFragmentShader = " \n"+
+		"// switch on high precision floats \n"+
+		"#ifdef GL_ES \n"+
+		"precision highp float; \n"+
+		"#endif \n"+
+ 		"\n"+
+		"varying vec3 vNormal; \n"+
+ 		"\n"+
+		"void main() { \n"+
+		"		float dProd = max(0.0, dot(vNormal, normalize(cameraPosition))); \n"+
+		"		gl_FragColor = vec4(dProd, dProd, dProd, 1.0); \n"+
+		"}";
+	var mixSceneVertexShader = " \n"+
+		"// switch on high precision floats \n"+
+		"#ifdef GL_ES \n"+
+		"precision highp float; \n"+
+		"#endif \n"+
+ 		"\n"+
+		"void main() { \n"+
+		"		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); \n"+
+		"}";
+	var mixSceneFragmentShader = " \n"+
+		"// switch on high precision floats \n"+
+		"#ifdef GL_ES \n"+
+		"precision highp float; \n"+
+		"#endif \n"+
+ 		"\n"+
+		"uniform vec2 viewport; \n"+
+		"uniform float weight; \n"+
+		"uniform sampler2D newFrame; \n"+
+		"uniform sampler2D lastFrame; \n"+
+ 		"\n"+
+		"void main() { \n"+
+		"		vec4 newColor = texture2D(newFrame, gl_FragCoord.xy / viewport.xy); \n"+
+		"		vec4 accColor = texture2D(lastFrame, gl_FragCoord.xy / viewport.xy); \n"+
+		"		gl_FragColor = mix(newColor, accColor, weight); \n"+
+		"}";
+	var mainSceneVertexShader = "\n"+
+		"// switch on high precision floats \n"+
+		"#ifdef GL_ES \n"+
+		"precision highp float; \n"+
+		"#endif \n"+
+ 		"\n"+
+		"varying vec3 vNormal; \n"+
+		"uniform bool antiAliasing; \n"+
+		"uniform vec2 aaNdcOffset; \n"+
+ 		"\n"+
+		"void main() { \n"+
+		"		vNormal = normal; \n"+
+		"		vec4 ndcVertex = projectionMatrix * modelViewMatrix * vec4(position, 1.0); \n"+
+		"		if (antiAliasing) { \n"+
+		"			ndcVertex.xy += aaNdcOffset * ndcVertex.w; \n"+
+		"		} \n"+
+		"		gl_Position = ndcVertex; \n"+
+		"}";
+	var mainSceneFragmentShader = "  \n"+
+		"// switch on high precision floats \n"+
+		"#ifdef GL_ES \n"+
+		"precision highp float; \n"+
+		"#endif \n"+
+		"\n"+
+		"varying vec3 vNormal; \n"+
+		"uniform vec2 viewport; \n"+
+		"uniform float weight; \n"+
+		"uniform sampler2D accBuffer; \n"+
+ 		"\n"+
+		"void main() { \n"+
+		"		float dProd = max(0.0, dot(vNormal, normalize(cameraPosition))); \n"+
+		"		vec4 newFragColor = vec4(vec3(dProd), 1.0); \n"+
+		"		vec4 accColor = texture2D(accBuffer, gl_FragCoord.xy / viewport.xy); \n"+
+		"		gl_FragColor = mix(newFragColor, accColor, weight); \n"+
+		"}";
 	this.mainSceneShaderMaterial = new THREE.ShaderMaterial({
 		uniforms: {
 			antiAliasing: { value: settings.antiAliasing != undefined ? settings.antiAliasing : true },
