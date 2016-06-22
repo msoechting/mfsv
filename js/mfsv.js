@@ -1,6 +1,7 @@
 var nextID = 1;
 
 window.onload = function() {
+	try { setupEval(); } catch(err) { console.log("setupEval failed, no stats available. ") }
 	var divs = document.getElementsByClassName("mfsviewer");
 	for (var i = 0; i < divs.length; i++) {
 		new MFSViewer(divs[i], { objPath: divs[i].getAttribute("objPath") });
@@ -58,7 +59,7 @@ function MFSViewer(div, settings) {
 
 		this.bufferFlipFlop = !this.bufferFlipFlop;
 		this.frameCount++;
-    evalTick();
+    try { evalTick(); } catch(err) {}
 	}
 
 	this.resize = function() {

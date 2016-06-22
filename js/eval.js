@@ -26,16 +26,15 @@ function setupEval()
 
 	stats2.showPanel(2);
 	stats2.dom.setAttribute('style', '');
+	
+  var DOMContentLoadedStart = (window.performance.timing.domContentLoadedEventStart - window.performance.timing.navigationStart) * 0.001;
+  var DOMContentLoadedEnd = (window.performance.timing.domContentLoadedEventEnd - window.performance.timing.navigationStart) * 0.001;
 
-    var DOMContentLoadedStart = (window.performance.timing.domContentLoadedEventStart - window.performance.timing.navigationStart) * 0.001;
-    var DOMContentLoadedEnd = (window.performance.timing.domContentLoadedEventEnd - window.performance.timing.navigationStart) * 0.001;
-
-    $("#eval-load")[0].innerHTML =
-      "Canvas: " + $("canvas")[0].width + "px x " + $("canvas")[0].height + "px" +
-      ", Finish: " + DOMContentLoadedStart.toFixed(2) + "s" +
-      ", DOMContentLoaded: " + DOMContentLoadedEnd.toFixed(2) + "s";
-
-	setupFirstFrame();
+  $("#eval-load")[0].innerHTML =
+    "Canvas: " + $("canvas")[0].width + "px x " + $("canvas")[0].height + "px" +
+    ", Finish: " + DOMContentLoadedStart.toFixed(2) + "s" +
+    ", DOMContentLoaded: " + DOMContentLoadedEnd.toFixed(2) + "s";
+		setupFirstFrame();
 }
 
 function setupFirstFrame()
@@ -96,7 +95,7 @@ function benchmark()
 	evalremap_color = $('#eval-remap-color')[0];
 	evalremap_height = $('#eval-remap-height')[0];
 	evalhighlight = $('#evalhighlight')[0];
-	
+
 	window.mfsv.renderAlways = true;
 	window.mfsv.requestRender();
 
