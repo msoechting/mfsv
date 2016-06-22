@@ -32,7 +32,6 @@ function setupEval()
 
     $("#eval-load")[0].innerHTML =
       "Canvas: " + $("canvas")[0].width + "px x " + $("canvas")[0].height + "px" +
-      ", Items: #" + numberOfItems() +
       ", Finish: " + DOMContentLoadedStart.toFixed(2) + "s" +
       ", DOMContentLoaded: " + DOMContentLoadedEnd.toFixed(2) + "s";
 
@@ -97,6 +96,9 @@ function benchmark()
 	evalremap_color = $('#eval-remap-color')[0];
 	evalremap_height = $('#eval-remap-height')[0];
 	evalhighlight = $('#evalhighlight')[0];
+	
+	window.mfsv.renderAlways = true;
+	window.mfsv.requestRender();
 
 	benchmark_stage = 0;
 }
@@ -135,70 +137,11 @@ function benchmark_tick()
 		}
 		break;
 
-	case 2: /* color remapping time */
-		{
-			benchmarked_frames++;
-			randomizeAllColorAttributes();
-
-			var time = (Date.now() - benchmarkTime) / benchmarked_frames;
-			var fps = 1000.0 / time;
-			evalremap_color.innerHTML = time.toFixed(2) + "ms, " + fps.toFixed(2) + "fps (measured " + benchmarked_frames + "/" + benchmark_num + ")";
-
-			if(benchmarked_frames < benchmark_num)
-				return;
-
-			benchmarked_frames = 0;
-			benchmarkTime = Date.now();
-			benchmark_stage = 3;
-		}
-		break;
-
-	case 3: /* height remapping time */
-		{
-			benchmarked_frames++;
-			randomizeAllHeightAttributes();
-
-			var time = (Date.now() - benchmarkTime) / benchmarked_frames;
-			var fps = 1000.0 / time;
-			evalremap_height.innerHTML = time.toFixed(2) + "ms, " + fps.toFixed(2) + "fps (measured " + benchmarked_frames + "/" + benchmark_num + ")";
-
-			if(benchmarked_frames < benchmark_num)
-				return;
-
-			benchmarked_frames = 0;
-			benchmarkTime = Date.now();
-			benchmark_stage = 4;
-		}
-		break;
-
-	case 4: /* individual node highlighting */
-		{
-			benchmarked_frames++;
-			if(benchmarked_frames > 0)
-				unhighlightNode(benchmarked_index);
-
-			benchmarked_index = Math.floor(Math.random() * numberOfItems());
-			highlightNode(benchmarked_index);
-
-			var time = (Date.now() - benchmarkTime) / benchmarked_frames;
-			var fps = 1000.0 / time;
-			evalhighlight.innerHTML = time.toFixed(2) + "ms, " + fps.toFixed(2) + "fps (measured " + benchmarked_frames + "/" + benchmark_num + ")";
-
-			if(benchmarked_frames < benchmark_num)
-				return;
-
-			unhighlightNode(benchmarked_index);
-
-			benchmarked_frames = 0;
-			benchmarkTime = Date.now();
-			benchmark_stage = 5;
-		}
-		break;
-
 	default: /* cleanup */
 		{
 			$('#benchmark').removeClass('disabled');
 			benchmark_stage = -1;
+			window.mfsv.renderAlways = false;
 		}
 		break;
 	}

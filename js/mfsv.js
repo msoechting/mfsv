@@ -12,13 +12,12 @@ function MFSViewer(div, settings) {
 	window.mfsv = this;
 
 	this.animate = function() {
-		requestAnimationFrame(myself.animate);
 		myself.controls.update();
-		if (myself.frameCount < myself.frameCountTarget) {
+		if (myself.frameCount < myself.frameCountTarget || myself.renderAlways) {
 			myself.render();
-			myself.frameCount++;
 			//myself.log("Rendered " + myself.frameCount + "/" + myself.frameCountTarget + " frames");
 		}
+		requestAnimationFrame(myself.animate);
 	};
 
 	this.log = function(logContent) {
@@ -31,6 +30,12 @@ function MFSViewer(div, settings) {
 	}
 
 	this.render = function() {
+		// artificial frame time limitation for multi-sampling presentation
+		currentTime = new Date().getTime();
+		if ((currentTime - this.lastRender) < this.minimumFrameTime) { return }
+		this.lastRender = currentTime;
+
+		// set NDC offsets if AA is enabled
 		if (this.mainSceneShaderMaterial.uniforms.antiAliasing.value) {
 			var xRand = Math.random() - 0.5;
 			var yRand = Math.random() - 0.5;
@@ -40,22 +45,20 @@ function MFSViewer(div, settings) {
 
 		// generate new frame from main scene
 		this.renderer.render(this.mainScene, this.mainCamera, this.newFrameBuffer);
-		this.mixSceneShaderMaterial.uniforms.newFrame.value = this.newFrameBuffer.texture;
 
+		// mix our previously accumulated image with our new frame in the mix scene
+		this.mixSceneShaderMaterial.uniforms.newFrame.value = this.newFrameBuffer.texture;
 		this.mixSceneShaderMaterial.uniforms.lastFrame.value = this.bufferFlipFlop ? this.secondAccumBuffer.texture : this.firstAccumBuffer.texture;
 		this.mixSceneShaderMaterial.uniforms.weight.value = this.frameCount / (this.frameCount + 1);
+		this.renderer.render(this.mixScene, this.mixCamera, this.bufferFlipFlop ? this.firstAccumBuffer : this.secondAccumBuffer, false);
 
-		// mix our accum buffer with our new frame in the mix scene
-		if(this.bufferFlipFlop)
-			this.renderer.render(this.mixScene, this.mixCamera, this.firstAccumBuffer, false);
-		else
-			this.renderer.render(this.mixScene, this.mixCamera, this.secondAccumBuffer, false);
-
-		// render the output from the mix scene to our final scene and
+		// render our new accumulated image to our final scene
 		this.finalQuad.material.map = !this.bufferFlipFlop ? this.secondAccumBuffer.texture : this.firstAccumBuffer.texture;
 		this.renderer.render(this.finalScene, this.finalCamera);
 
 		this.bufferFlipFlop = !this.bufferFlipFlop;
+		this.frameCount++;
+    evalTick();
 	}
 
 	this.resize = function() {
@@ -98,10 +101,15 @@ function MFSViewer(div, settings) {
 	this.width = this.width * this.dpr;
 	this.height = this.height * this.dpr;
 	this.renderer.setClearColor(0x000000, 0);
+	this.lastRender = new Date().getTime();
+	this.renderAlways = false;
 
-	// set up buffers
+	// DETECT TEXTURE PRECISION
+	// .getExtension activates the extension
+	// 		WEBGL_color_buffer_float -> WebGL 1 (https://developer.mozilla.org/en-US/docs/Web/API/WEBGL_color_buffer_float)
+	// 		EXT_color_buffer_float & EXT_color_buffer_half_float -> WebGL 2 (https://developer.mozilla.org/en-US/docs/Web/API/EXT_color_buffer_float)
 	var texturePrecision;
-	if (this.renderer.context.getExtension('WEBGL_color_buffer_float') !== null ) {
+	if (this.renderer.context.getExtension('WEBGL_color_buffer_float') !== null || this.renderer.context.getExtension('EXT_color_buffer_float') !== null) {
 		texturePrecision = THREE.FloatType;
 		this.log('FLOAT texture precision supported and will be used.');
 	} else if (this.renderer.context.getExtension('EXT_color_buffer_half_float') !== null) {
@@ -111,6 +119,8 @@ function MFSViewer(div, settings) {
 		texturePrecision = THREE.UnsignedByteType;
 		this.log('UNSIGNED BYTE texture precision will be used.');
 	}
+
+	// set up textures
 	var bufferSettings = {
 		minFilter: THREE.NearestFilter,
 		magFilter: THREE.NearestFilter,
@@ -142,12 +152,16 @@ function MFSViewer(div, settings) {
 		"precision highp float; \n"+
 		"#endif \n"+
  		"\n"+
-		"varying vec3 vNormal; \n"+
 		"uniform bool antiAliasing; \n"+
 		"uniform vec2 aaNdcOffset; \n"+
-	 	"\n"+
+ 		"\n"+
+		"varying vec3 vNormal; \n"+
+		"varying vec4 vPosition; \n"+
+ 		"\n"+
 		"void main() { \n"+
 		"		vNormal = normal; \n"+
+		"		vPosition = modelMatrix * vec4(position, 1.0); \n"+
+		"		vPosition *= vPosition.w; \n"+
 		"		vec4 ndcVertex = projectionMatrix * modelViewMatrix * vec4(position, 1.0); \n"+
 		"		if (antiAliasing) { \n"+
 		"			ndcVertex.xy += aaNdcOffset * ndcVertex.w; \n"+
@@ -160,11 +174,27 @@ function MFSViewer(div, settings) {
 		"precision highp float; \n"+
 		"#endif \n"+
  		"\n"+
+		"uniform vec3 ambientColor; \n"+
+		"uniform vec3 diffuseColor; \n"+
+		"uniform vec3 specularColor; \n"+
+		"uniform float shininess; \n"+
+		"uniform vec3 lightPosition; \n"+
+ 		"\n"+
 		"varying vec3 vNormal; \n"+
+		"varying vec4 vPosition; \n"+
  		"\n"+
 		"void main() { \n"+
-		"		float dProd = max(0.0, dot(vNormal, normalize(cameraPosition))); \n"+
-		"		gl_FragColor = vec4(dProd, dProd, dProd, 1.0); \n"+
+		"		vec3 L = normalize(lightPosition - vPosition.xyz); \n"+
+ 		"		\n"+
+		"		float lambert = dot(vNormal, L); \n"+
+		"		float specular = 0.0; \n"+
+		"		if(lambert > 0.0) { \n"+
+		"			vec3 R = reflect(-L, vNormal); \n"+
+		"			vec3 V = normalize(-vPosition.xyz); \n"+
+		"			float specAngle = max(dot(R, V), 0.0); \n"+
+		"			specular = pow(specAngle, shininess); \n"+
+		"		} \n"+
+		"		gl_FragColor = vec4(vec3(ambientColor + diffuseColor * lambert + specularColor * specular), 1.0); \n"+
 		"}";
 	var mixSceneVertexShader = " \n"+
 		"// switch on high precision floats \n"+
@@ -191,45 +221,16 @@ function MFSViewer(div, settings) {
 		"		vec4 accColor = texture2D(lastFrame, gl_FragCoord.xy / viewport.xy); \n"+
 		"		gl_FragColor = mix(newColor, accColor, weight); \n"+
 		"}";
-	var mainSceneVertexShader = "\n"+
-		"// switch on high precision floats \n"+
-		"#ifdef GL_ES \n"+
-		"precision highp float; \n"+
-		"#endif \n"+
- 		"\n"+
-		"varying vec3 vNormal; \n"+
-		"uniform bool antiAliasing; \n"+
-		"uniform vec2 aaNdcOffset; \n"+
- 		"\n"+
-		"void main() { \n"+
-		"		vNormal = normal; \n"+
-		"		vec4 ndcVertex = projectionMatrix * modelViewMatrix * vec4(position, 1.0); \n"+
-		"		if (antiAliasing) { \n"+
-		"			ndcVertex.xy += aaNdcOffset * ndcVertex.w; \n"+
-		"		} \n"+
-		"		gl_Position = ndcVertex; \n"+
-		"}";
-	var mainSceneFragmentShader = "  \n"+
-		"// switch on high precision floats \n"+
-		"#ifdef GL_ES \n"+
-		"precision highp float; \n"+
-		"#endif \n"+
-		"\n"+
-		"varying vec3 vNormal; \n"+
-		"uniform vec2 viewport; \n"+
-		"uniform float weight; \n"+
-		"uniform sampler2D accBuffer; \n"+
- 		"\n"+
-		"void main() { \n"+
-		"		float dProd = max(0.0, dot(vNormal, normalize(cameraPosition))); \n"+
-		"		vec4 newFragColor = vec4(vec3(dProd), 1.0); \n"+
-		"		vec4 accColor = texture2D(accBuffer, gl_FragCoord.xy / viewport.xy); \n"+
-		"		gl_FragColor = mix(newFragColor, accColor, weight); \n"+
-		"}";
+
 	this.mainSceneShaderMaterial = new THREE.ShaderMaterial({
 		uniforms: {
 			antiAliasing: { value: settings.antiAliasing != undefined ? settings.antiAliasing : true },
-			aaNdcOffset: { value: new THREE.Vector2(0.0, 0.0) }
+			aaNdcOffset: { value: new THREE.Vector2(0.0, 0.0) },
+			ambientColor: { value: new THREE.Vector3(0.0, 0.0, 0.0) },
+			diffuseColor: { value: new THREE.Vector3(1.0, 1.0, 1.0) },
+			specularColor: { value: new THREE.Vector3(0.5, 0.5, 0.5) },
+			shininess: { value: 4 },
+			lightPosition: { value: this.mainCamera.position }
 		},
 		vertexShader: mainSceneVertexShader,
 		fragmentShader: mainSceneFragmentShader
@@ -289,14 +290,15 @@ function MFSViewer(div, settings) {
 	this.controls.dynamicDampingFactor = 0.3;
 	this.controls.keys = [ 65, 83, 68 ];
 
-
 	// set up gui
 	this.gui = new dat.GUI();
 	this.gui.width = 300;
 	var guiOptions = {
-		"ViewerID(ReadOnly)": myself.id,
+		"ViewerID(ReadOnly)": this.id,
 		targetFrameCount: "64",
-		antiAliasing: this.mainSceneShaderMaterial.uniforms.antiAliasing.value
+		antiAliasing: this.mainSceneShaderMaterial.uniforms.antiAliasing.value,
+		minimumFrameTime: 0.0,
+		"ignoreTargetFrameCount": this.renderAlways
 	};
 	var updateTargetFrameCount = function() {
 		var newFrameCountTarget = parseFloat(guiOptions.targetFrameCount).toFixed(0);
@@ -307,11 +309,15 @@ function MFSViewer(div, settings) {
 	};
 	var updateRenderSettings = function () {
 		myself.mainSceneShaderMaterial.uniforms.antiAliasing.value = guiOptions.antiAliasing;
+		myself.minimumFrameTime = guiOptions.minimumFrameTime;
+		myself.renderAlways = guiOptions["ignoreTargetFrameCount"];
 		myself.requestRender();
 	}
 	updateTargetFrameCount();
 	updateRenderSettings();
 	this.gui.add(guiOptions, "ViewerID(ReadOnly)");
 	this.gui.add(guiOptions, "targetFrameCount").onChange(updateTargetFrameCount);
+	this.gui.add(guiOptions, "ignoreTargetFrameCount").onChange(updateRenderSettings);
 	this.gui.add(guiOptions, "antiAliasing").onChange(updateRenderSettings);
+	this.gui.add(guiOptions, "minimumFrameTime", 0, 500).onChange(updateRenderSettings);
 }
