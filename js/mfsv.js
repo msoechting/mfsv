@@ -3,7 +3,7 @@ var nextID = 1;
 window.onload = function() {
 	var divs = document.getElementsByClassName("mfsviewer");
 	for (var i = 0; i < divs.length; i++) {
-		new MFSViewer(divs[i], divs[i].renderSettings ? divs[i].renderSettings : window.renderSettings);
+		new MFSViewer(divs[i], { objPath: divs[i].getAttribute("objPath") });
 	}
 }
 
@@ -64,6 +64,7 @@ function MFSViewer(div, settings) {
 		}
 		var w = myself.div.offsetParent.offsetWidth, h = myself.div.offsetParent.offsetHeight;
 		myself.renderer.setSize(w, h);
+		myself.dpr = window.devicePixelRatio;
 		w *= myself.dpr;
 		h *= myself.dpr;
 		myself.mainCamera.aspect = w / h;
@@ -78,11 +79,11 @@ function MFSViewer(div, settings) {
 	}
 
 	// set width & height
-	this.fixedSize = !(settings.width == undefined || settings.height == undefined);
+	this.fixedSize = !(settings == undefined || settings.width == undefined || settings.height == undefined);
 	this.width = settings.width ? settings.width : div.offsetParent.offsetWidth;
 	this.height = settings.height ? settings.height : div.offsetParent.offsetHeight;
 	window.addEventListener('resize', this.resize, false);
-	this.dpr = window.devicePixelRatio;
+	this.dpr = (window.devicePixelRatio > 0) ? window.devicePixelRatio : 1;
 
 	// misc vars
 	this.frameCount = 0;
