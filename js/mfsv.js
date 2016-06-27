@@ -1,7 +1,7 @@
 var nextID = 1;
 
 window.onload = function() {
-	try { setupEval(); } catch(err) { console.log("setupEval failed, no stats available. ") }
+	try { setupEval(); } catch(err) { console.log("setupEval failed, no stats available.") }
 	var divs = document.getElementsByClassName("mfsviewer");
 	for (var i = 0; i < divs.length; i++) {
 		new MFSViewer(divs[i], { objPath: divs[i].getAttribute("objPath"), jsonPath: divs[i].getAttribute("jsonPath") });
@@ -16,7 +16,7 @@ function MFSViewer(div, settings) {
 		myself.controls.update();
 		if (myself.frameCount < myself.frameCountTarget || myself.renderAlways) {
 			myself.render();
-			//myself.log("Rendered " + myself.frameCount + "/" + myself.frameCountTarget + " frames");
+			myself.log("Rendered " + myself.frameCount + "/" + myself.frameCountTarget + " frames");
 		}
 		requestAnimationFrame(myself.animate);
 	};
@@ -36,18 +36,16 @@ function MFSViewer(div, settings) {
 		if ((currentTime - this.lastRender) < this.minimumFrameTime) { return }
 		this.lastRender = currentTime;
 
-		this.light.position.set(this.mainCamera.position.x, this.mainCamera.position.y, this.mainCamera.position.z);
-
 		// set NDC offsets if AA is enabled
-		if (this.mainSceneShaderMaterial.uniforms.antiAliasing.value) {
+		if (this.mixSceneShaderMaterial.uniforms.antiAliasing.value) {
 			var xRand = Math.random() - 0.5;
 			var yRand = Math.random() - 0.5;
-			this.mainSceneShaderMaterial.uniforms.aaNdcOffset.value.x = 2 * xRand / (this.width);
-			this.mainSceneShaderMaterial.uniforms.aaNdcOffset.value.y = 2 * yRand / (this.height);
+			this.mixSceneShaderMaterial.uniforms.aaNdcOffset.value.x = this.debugOptions.aaNdcOffsetMultiplier * 2 * xRand / (this.width);
+			this.mixSceneShaderMaterial.uniforms.aaNdcOffset.value.y = this.debugOptions.aaNdcOffsetMultiplier * 2 * yRand / (this.height);
 		}
 
 		// generate new frame from main scene
-		this.renderer.render(this.mainScene, this.mainCamera);//, this.newFrameBuffer);
+		this.renderer.render(this.mainScene, this.mainCamera, this.newFrameBuffer);
 
 		// mix our previously accumulated image with our new frame in the mix scene
 		this.mixSceneShaderMaterial.uniforms.newFrame.value = this.newFrameBuffer.texture;
@@ -57,7 +55,7 @@ function MFSViewer(div, settings) {
 
 		// render our new accumulated image to our final scene
 		this.finalQuad.material.map = !this.bufferFlipFlop ? this.secondAccumBuffer.texture : this.firstAccumBuffer.texture;
-		//this.renderer.render(this.finalScene, this.finalCamera);
+		this.renderer.render(this.finalScene, this.finalCamera);
 
 		this.bufferFlipFlop = !this.bufferFlipFlop;
 		this.frameCount++;
@@ -98,6 +96,7 @@ function MFSViewer(div, settings) {
 
 	// prepare renderer
 	this.renderer = new THREE.WebGLRenderer( { alpha: true } );
+	this.renderer.shadowMap.enabled = true;
 	this.renderer.setSize(this.width, this.height);
 	this.renderer.setPixelRatio(this.dpr);
 	this.width = this.width * this.dpr;
@@ -121,7 +120,6 @@ function MFSViewer(div, settings) {
 		texturePrecision = THREE.UnsignedByteType;
 		this.log('UNSIGNED BYTE texture precision will be used.');
 	}
-	texturePrecision = THREE.FloatType;
 
 	// set up textures
 	var bufferSettings = {
@@ -136,24 +134,29 @@ function MFSViewer(div, settings) {
 
 	// initialize cameras
 	this.mainCamera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.1, 10000);
-	this.mainCamera.position.z = 7;
+	this.mainCamera.position.z = 1;
 	this.mixCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 	this.finalCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-	this.light = new THREE.PointLight(0xffffff, 2, 0);
-	this.light.position.set(1, 1, 1);
+	// set up light
+	this.light = new THREE.SpotLight(0xffffff, 2, 20);
+	this.light.castShadow = true;
+	this.light.shadow.mapSize.width = 1024;
+	this.light.shadow.mapSize.height = 1024;
+	this.light.shadow.camera.near = 0.01;
+	this.light.shadow.camera.far = 4000;
+	this.light.shadow.camera.fov = 75;
 
 	// prepare scenes
 	this.mainScene = new THREE.Scene();
 	this.mainScene.add(this.mainCamera);
-	this.mainScene.add(this.light);
 	this.mixScene = new THREE.Scene();
 	this.mixScene.add(this.mixCamera);
 	this.finalScene = new THREE.Scene();
 	this.finalScene.add(this.finalCamera);
 
 	// load shaders
-	var mainSceneVertexShader = " \n"+
+	var mixSceneVertexShader = " \n"+
 		"// switch on high precision floats \n"+
 		"#ifdef GL_ES \n"+
 		"precision highp float; \n"+
@@ -162,55 +165,12 @@ function MFSViewer(div, settings) {
 		"uniform bool antiAliasing; \n"+
 		"uniform vec2 aaNdcOffset; \n"+
  		"\n"+
-		"varying vec3 vNormal; \n"+
-		"varying vec4 vPosition; \n"+
- 		"\n"+
 		"void main() { \n"+
-		"		vNormal = normal; \n"+
-		"		vPosition = modelMatrix * vec4(position, 1.0); \n"+
-		"		vPosition *= vPosition.w; \n"+
 		"		vec4 ndcVertex = projectionMatrix * modelViewMatrix * vec4(position, 1.0); \n"+
 		"		if (antiAliasing) { \n"+
 		"			ndcVertex.xy += aaNdcOffset * ndcVertex.w; \n"+
 		"		} \n"+
 		"		gl_Position = ndcVertex; \n"+
-		"}";
-	var mainSceneFragmentShader = " \n"+
-		"// switch on high precision floats \n"+
-		"#ifdef GL_ES \n"+
-		"precision highp float; \n"+
-		"#endif \n"+
- 		"\n"+
-		"uniform vec3 ambientColor; \n"+
-		"uniform vec3 diffuseColor; \n"+
-		"uniform vec3 specularColor; \n"+
-		"uniform float shininess; \n"+
-		"uniform vec3 lightPosition; \n"+
- 		"\n"+
-		"varying vec3 vNormal; \n"+
-		"varying vec4 vPosition; \n"+
- 		"\n"+
-		"void main() { \n"+
-		"		vec3 L = normalize(lightPosition - vPosition.xyz); \n"+
- 		"		\n"+
-		"		float lambert = dot(vNormal, L); \n"+
-		"		float specular = 0.0; \n"+
-		"		if(lambert > 0.0) { \n"+
-		"			vec3 R = reflect(-L, vNormal); \n"+
-		"			vec3 V = normalize(-vPosition.xyz); \n"+
-		"			float specAngle = max(dot(R, V), 0.0); \n"+
-		"			specular = pow(specAngle, shininess); \n"+
-		"		} \n"+
-		"		gl_FragColor = vec4(vec3(ambientColor + diffuseColor * lambert + specularColor * specular), 1.0); \n"+
-		"}";
-	var mixSceneVertexShader = " \n"+
-		"// switch on high precision floats \n"+
-		"#ifdef GL_ES \n"+
-		"precision highp float; \n"+
-		"#endif \n"+
- 		"\n"+
-		"void main() { \n"+
-		"		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); \n"+
 		"}";
 	var mixSceneFragmentShader = " \n"+
 		"// switch on high precision floats \n"+
@@ -229,21 +189,10 @@ function MFSViewer(div, settings) {
 		"		gl_FragColor = mix(newColor, accColor, weight); \n"+
 		"}";
 
-	this.mainSceneShaderMaterial = new THREE.ShaderMaterial({
+	this.mixSceneShaderMaterial = new THREE.ShaderMaterial({
 		uniforms: {
 			antiAliasing: { value: settings.antiAliasing != undefined ? settings.antiAliasing : true },
 			aaNdcOffset: { value: new THREE.Vector2(0.0, 0.0) },
-			ambientColor: { value: new THREE.Vector3(0.0, 0.0, 0.0) },
-			diffuseColor: { value: new THREE.Vector3(1.0, 1.0, 1.0) },
-			specularColor: { value: new THREE.Vector3(0.5, 0.5, 0.5) },
-			shininess: { value: 4 },
-			lightPosition: { value: this.mainCamera.position }
-		},
-		vertexShader: mainSceneVertexShader,
-		fragmentShader: mainSceneFragmentShader
-	});
-	this.mixSceneShaderMaterial = new THREE.ShaderMaterial({
-		uniforms: {
 			lastFrame: { value: this.firstAccumBuffer.texture },
 			newFrame: { value: this.firstAccumBuffer.texture },
 			weight: { value: 0.0 },
@@ -269,26 +218,35 @@ function MFSViewer(div, settings) {
 		loader.load(settings.objPath, function (object) {
 			object.traverse(function(child) {
 				if (child instanceof THREE.Mesh) {
-					console.log(child.material);
-					child.material = myself.mainSceneShaderMaterial;
+					child.material = new THREE.MeshLambertMaterial();
 				}
 			} );
+			myself.model = object;
 			myself.mainScene.add(object);
 		} );
 	}
 
 	if (settings.jsonPath) {
 		var loader = new THREE.JSONLoader(manager);
-		loader.setTexturePath("obj/crytek-sponza/textures/")
-		loader.load(settings.jsonPath, function (geom, mats) {
-			// myself.mainSceneShaderMaterial
-			mats.forEach(function(mat) {
+		loader.setTexturePath(settings.jsonPath.substring(0, settings.jsonPath.lastIndexOf("/"))+"/textures/")
+		loader.load(settings.jsonPath, function (geometry, materials) {
+			// enable repeat texture mode
+			materials.forEach(function(mat) {
 				if (mat.map) {
 					mat.map.wrapS = THREE.RepeatWrapping;
 					mat.map.wrapT = THREE.RepeatWrapping;
 				}
 			} );
-			myself.mainScene.add(new THREE.Mesh(geom, new THREE.MeshFaceMaterial(mats)));
+
+			// normalize model size
+			s = 4 / geometry.boundingSphere.radius;
+			geometry = geometry.scale(s, s, s);
+
+			// configure & load model into scene
+			myself.model = new THREE.Mesh(geometry, new THREE.MeshFaceMaterial(materials));
+			myself.model.castShadow = true;
+			myself.model.receiveShadow = true;
+			myself.mainScene.add(myself.model);
 		} );
 	}
 
@@ -307,8 +265,8 @@ function MFSViewer(div, settings) {
 	this.controls.addEventListener('change', this.requestRender);
 	this.controls.target.set(0, 0, 0);
 	this.controls.rotateSpeed = 5.0;
-	this.controls.zoomSpeed = 20;
-	this.controls.panSpeed = 100;
+	this.controls.zoomSpeed = 2;
+	this.controls.panSpeed = 10;
 	this.controls.noZoom = false;
 	this.controls.noPan = false;
 	this.controls.staticMoving = true;
@@ -321,9 +279,18 @@ function MFSViewer(div, settings) {
 	var guiOptions = {
 		"ViewerID(ReadOnly)": this.id,
 		targetFrameCount: 64,
-		antiAliasing: this.mainSceneShaderMaterial.uniforms.antiAliasing.value,
 		minimumFrameTime: 0.0,
 		"ignoreTargetFrameCount": this.renderAlways
+	};
+	var effectOptions = {
+		antiAliasing: this.mixSceneShaderMaterial.uniforms.antiAliasing.value
+	};
+	var lightOptions = {
+		lightIntensity: 2.0,
+		followCamera: true
+	};
+	this.debugOptions = {
+		aaNdcOffsetMultiplier: 1.0
 	};
 	var updateTargetFrameCount = function() {
 		var newFrameCountTarget = guiOptions.targetFrameCount;
@@ -333,16 +300,44 @@ function MFSViewer(div, settings) {
 		}
 	};
 	var updateRenderSettings = function () {
-		myself.mainSceneShaderMaterial.uniforms.antiAliasing.value = guiOptions.antiAliasing;
+		myself.mixSceneShaderMaterial.uniforms.antiAliasing.value = effectOptions.antiAliasing;
 		myself.minimumFrameTime = guiOptions.minimumFrameTime;
 		myself.renderAlways = guiOptions.ignoreTargetFrameCount;
 		myself.requestRender();
 	}
+	var updateLightMode = function () {
+		if (lightOptions.followCamera) {
+			myself.mainScene.remove(myself.light);
+			myself.mainCamera.add(myself.light);
+			myself.light.position.set(0, 0, 0.0001);
+			myself.light.target = myself.mainCamera;
+		} else {
+			myself.mainCamera.remove(myself.light);
+			myself.mainScene.add(myself.light);
+			myself.light.position.set(myself.mainCamera.position.x, myself.mainCamera.position.y, myself.mainCamera.position.z);
+			myself.light.target = myself.model;
+		}
+		myself.requestRender();
+	}
+	var updateLightSettings = function () {
+		myself.light.intensity = lightOptions.lightIntensity;
+		myself.requestRender();
+	}
 	updateTargetFrameCount();
 	updateRenderSettings();
+	updateLightSettings();
+	updateLightMode();
+
 	this.gui.add(guiOptions, "ViewerID(ReadOnly)");
-	this.gui.add(guiOptions, "targetFrameCount", 1, 128).onChange(updateTargetFrameCount);
-	this.gui.add(guiOptions, "ignoreTargetFrameCount").onChange(updateRenderSettings);
-	this.gui.add(guiOptions, "antiAliasing").onChange(updateRenderSettings);
-	this.gui.add(guiOptions, "minimumFrameTime", 0, 500).onChange(updateRenderSettings);
+	var f1 = this.gui.addFolder("Multi-frame Sampling");
+	f1.add(guiOptions, "targetFrameCount", 1, 128).onChange(updateTargetFrameCount);
+	f1.add(guiOptions, "ignoreTargetFrameCount").onChange(updateRenderSettings);
+	f1.add(guiOptions, "minimumFrameTime", 0, 500).onChange(updateRenderSettings);
+	var f2 = this.gui.addFolder("Effects");
+	f2.add(effectOptions, "antiAliasing").onChange(updateRenderSettings);
+	var f3 = this.gui.addFolder("Light");
+	f3.add(lightOptions, "followCamera").onChange(updateLightMode);
+	f3.add(lightOptions, "lightIntensity", 1, 5).onChange(updateLightSettings);
+	var f4 = this.gui.addFolder("Debugging");
+	f4.add(this.debugOptions, "aaNdcOffsetMultiplier", 1, 100);
 }
