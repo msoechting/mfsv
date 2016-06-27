@@ -16,7 +16,7 @@ function MFSViewer(div, settings) {
 		myself.controls.update();
 		if (myself.frameCount < myself.frameCountTarget || myself.renderAlways) {
 			myself.render();
-			myself.log("Rendered " + myself.frameCount + "/" + myself.frameCountTarget + " frames");
+			//myself.log("Rendered " + myself.frameCount + "/" + myself.frameCountTarget + " frames");
 		}
 		requestAnimationFrame(myself.animate);
 	};
@@ -36,12 +36,18 @@ function MFSViewer(div, settings) {
 		if ((currentTime - this.lastRender) < this.minimumFrameTime) { return }
 		this.lastRender = currentTime;
 
+
 		// set NDC offsets if AA is enabled
-		if (this.mixSceneShaderMaterial.uniforms.antiAliasing.value) {
+		if (this.effectOptions.antiAliasing) {
 			var xRand = Math.random() - 0.5;
 			var yRand = Math.random() - 0.5;
 			this.mixSceneShaderMaterial.uniforms.aaNdcOffset.value.x = this.debugOptions.aaNdcOffsetMultiplier * 2 * xRand / (this.width);
 			this.mixSceneShaderMaterial.uniforms.aaNdcOffset.value.y = this.debugOptions.aaNdcOffsetMultiplier * 2 * yRand / (this.height);
+		}
+		if (this.effectOptions.softShadows) {
+			var xRand = 0.000005 * (Math.random() - 0.5);
+			var yRand = 0.000005 * (Math.random() - 0.5);
+			this.light.position.set(this.light.basePosition.x + xRand, this.light.basePosition.y + yRand, this.light.basePosition.z);
 		}
 
 		// generate new frame from main scene
@@ -123,8 +129,8 @@ function MFSViewer(div, settings) {
 
 	// set up textures
 	var bufferSettings = {
-		minFilter: THREE.LineaerFilter,
-		magFilter: THREE.LineaerFilter,
+		minFilter: THREE.LinearFilter,
+		magFilter: THREE.LinearFilter,
 		format: THREE.RGBAFormat,
 		type: texturePrecision
 	};
@@ -156,21 +162,30 @@ function MFSViewer(div, settings) {
 	this.finalScene.add(this.finalCamera);
 
 	// load shaders
-	var mixSceneVertexShader = " \n"+
+	var mainSceneVertexShader = " \n"+
 		"// switch on high precision floats \n"+
 		"#ifdef GL_ES \n"+
 		"precision highp float; \n"+
 		"#endif \n"+
- 		"\n"+
+		"\n"+
 		"uniform bool antiAliasing; \n"+
 		"uniform vec2 aaNdcOffset; \n"+
- 		"\n"+
+		"\n"+
 		"void main() { \n"+
 		"		vec4 ndcVertex = projectionMatrix * modelViewMatrix * vec4(position, 1.0); \n"+
 		"		if (antiAliasing) { \n"+
 		"			ndcVertex.xy += aaNdcOffset * ndcVertex.w; \n"+
 		"		} \n"+
 		"		gl_Position = ndcVertex; \n"+
+		"}";
+	var mixSceneVertexShader = " \n"+
+		"// switch on high precision floats \n"+
+		"#ifdef GL_ES \n"+
+		"precision highp float; \n"+
+		"#endif \n"+
+ 		"\n"+
+		"void main() { \n"+
+		"		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); \n"+
 		"}";
 	var mixSceneFragmentShader = " \n"+
 		"// switch on high precision floats \n"+
@@ -204,13 +219,12 @@ function MFSViewer(div, settings) {
 
 	// load and add our object to the scene
 	var manager = new THREE.LoadingManager();
-	var log = this.log, animate = this.animate;
 	manager.onProgress = function (item, loaded, total) {
-		log("Loaded item " + item + " (" + loaded + " of " + total + " objects)");
+		myself.log("Loaded item " + item + " (" + loaded + " of " + total + " objects)");
 	};
 	manager.onLoad = function () {
-		log("Loading finished!");
-		animate();
+		myself.log("Loading finished!");
+		myself.animate();
 	};
 
 	if (settings.objPath) {
@@ -276,68 +290,70 @@ function MFSViewer(div, settings) {
 	// set up gui
 	this.gui = new dat.GUI();
 	this.gui.width = 300;
-	var guiOptions = {
+	this.guiOptions = {
 		"ViewerID(ReadOnly)": this.id,
 		targetFrameCount: 64,
 		minimumFrameTime: 0.0,
 		"ignoreTargetFrameCount": this.renderAlways
 	};
-	var effectOptions = {
-		antiAliasing: this.mixSceneShaderMaterial.uniforms.antiAliasing.value
+	this.effectOptions = {
+		antiAliasing: this.mixSceneShaderMaterial.uniforms.antiAliasing.value,
+		softShadows: true
 	};
-	var lightOptions = {
+	this.lightOptions = {
 		lightIntensity: 2.0,
 		followCamera: true
 	};
 	this.debugOptions = {
 		aaNdcOffsetMultiplier: 1.0
 	};
-	var updateTargetFrameCount = function() {
-		var newFrameCountTarget = guiOptions.targetFrameCount;
+	this.updateTargetFrameCount = function() {
+		var newFrameCountTarget = myself.guiOptions.targetFrameCount;
 		if (newFrameCountTarget != myself.frameCountTarget && newFrameCountTarget > 0) {
 			myself.frameCountTarget = newFrameCountTarget;
 			myself.requestRender();
 		}
 	};
-	var updateRenderSettings = function () {
-		myself.mixSceneShaderMaterial.uniforms.antiAliasing.value = effectOptions.antiAliasing;
-		myself.minimumFrameTime = guiOptions.minimumFrameTime;
-		myself.renderAlways = guiOptions.ignoreTargetFrameCount;
+	this.updateRenderSettings = function () {
+		myself.minimumFrameTime = myself.guiOptions.minimumFrameTime;
+		myself.renderAlways = myself.guiOptions.ignoreTargetFrameCount;
 		myself.requestRender();
 	}
-	var updateLightMode = function () {
-		if (lightOptions.followCamera) {
+	this.updateLightMode = function () {
+		if (myself.lightOptions.followCamera) {
 			myself.mainScene.remove(myself.light);
 			myself.mainCamera.add(myself.light);
-			myself.light.position.set(0, 0, 0.0001);
+			myself.light.basePosition = new THREE.Vector3(0, 0, 0.0001);
 			myself.light.target = myself.mainCamera;
 		} else {
 			myself.mainCamera.remove(myself.light);
 			myself.mainScene.add(myself.light);
+			myself.light.basePosition = myself.mainCamera.position;
 			myself.light.position.set(myself.mainCamera.position.x, myself.mainCamera.position.y, myself.mainCamera.position.z);
 			myself.light.target = myself.model;
 		}
 		myself.requestRender();
 	}
-	var updateLightSettings = function () {
-		myself.light.intensity = lightOptions.lightIntensity;
+	this.updateLightSettings = function () {
+		myself.light.intensity = myself.lightOptions.lightIntensity;
 		myself.requestRender();
 	}
-	updateTargetFrameCount();
-	updateRenderSettings();
-	updateLightSettings();
-	updateLightMode();
+	this.updateTargetFrameCount();
+	this.updateRenderSettings();
+	this.updateLightSettings();
+	this.updateLightMode();
 
-	this.gui.add(guiOptions, "ViewerID(ReadOnly)");
+	this.gui.add(this.guiOptions, "ViewerID(ReadOnly)");
 	var f1 = this.gui.addFolder("Multi-frame Sampling");
-	f1.add(guiOptions, "targetFrameCount", 1, 128).onChange(updateTargetFrameCount);
-	f1.add(guiOptions, "ignoreTargetFrameCount").onChange(updateRenderSettings);
-	f1.add(guiOptions, "minimumFrameTime", 0, 500).onChange(updateRenderSettings);
+	f1.add(this.guiOptions, "targetFrameCount", 1, 128).onChange(this.updateTargetFrameCount);
+	f1.add(this.guiOptions, "ignoreTargetFrameCount").onChange(this.updateRenderSettings);
+	f1.add(this.guiOptions, "minimumFrameTime", 0, 500).onChange(this.updateRenderSettings);
 	var f2 = this.gui.addFolder("Effects");
-	f2.add(effectOptions, "antiAliasing").onChange(updateRenderSettings);
+	f2.add(this.effectOptions, "antiAliasing").onChange(this.updateRenderSettings);
+	f2.add(this.effectOptions, "softShadows").onChange(this.updateRenderSettings);
 	var f3 = this.gui.addFolder("Light");
-	f3.add(lightOptions, "followCamera").onChange(updateLightMode);
-	f3.add(lightOptions, "lightIntensity", 1, 5).onChange(updateLightSettings);
+	f3.add(this.lightOptions, "followCamera").onChange(this.updateLightMode);
+	f3.add(this.lightOptions, "lightIntensity", 1, 5).onChange(this.updateLightSettings);
 	var f4 = this.gui.addFolder("Debugging");
-	f4.add(this.debugOptions, "aaNdcOffsetMultiplier", 1, 100);
+	f4.add(this.debugOptions, "aaNdcOffsetMultiplier", 1, 300).onChange(this.updateRenderSettings);
 }
