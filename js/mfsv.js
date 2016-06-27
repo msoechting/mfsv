@@ -4,7 +4,7 @@ window.onload = function() {
 	try { setupEval(); } catch(err) { console.log("setupEval failed, no stats available. ") }
 	var divs = document.getElementsByClassName("mfsviewer");
 	for (var i = 0; i < divs.length; i++) {
-		new MFSViewer(divs[i], { objPath: divs[i].getAttribute("objPath") });
+		new MFSViewer(divs[i], { objPath: divs[i].getAttribute("objPath"), jsonPath: divs[i].getAttribute("jsonPath") });
 	}
 }
 
@@ -36,6 +36,8 @@ function MFSViewer(div, settings) {
 		if ((currentTime - this.lastRender) < this.minimumFrameTime) { return }
 		this.lastRender = currentTime;
 
+		this.light.position.set(this.mainCamera.position.x, this.mainCamera.position.y, this.mainCamera.position.z);
+
 		// set NDC offsets if AA is enabled
 		if (this.mainSceneShaderMaterial.uniforms.antiAliasing.value) {
 			var xRand = Math.random() - 0.5;
@@ -45,7 +47,7 @@ function MFSViewer(div, settings) {
 		}
 
 		// generate new frame from main scene
-		this.renderer.render(this.mainScene, this.mainCamera, this.newFrameBuffer);
+		this.renderer.render(this.mainScene, this.mainCamera);//, this.newFrameBuffer);
 
 		// mix our previously accumulated image with our new frame in the mix scene
 		this.mixSceneShaderMaterial.uniforms.newFrame.value = this.newFrameBuffer.texture;
@@ -55,7 +57,7 @@ function MFSViewer(div, settings) {
 
 		// render our new accumulated image to our final scene
 		this.finalQuad.material.map = !this.bufferFlipFlop ? this.secondAccumBuffer.texture : this.firstAccumBuffer.texture;
-		this.renderer.render(this.finalScene, this.finalCamera);
+		//this.renderer.render(this.finalScene, this.finalCamera);
 
 		this.bufferFlipFlop = !this.bufferFlipFlop;
 		this.frameCount++;
@@ -68,7 +70,6 @@ function MFSViewer(div, settings) {
 		}
 		var w = myself.div.offsetParent.offsetWidth, h = myself.div.offsetParent.offsetHeight;
 		myself.renderer.setSize(w, h);
-		myself.dpr = window.devicePixelRatio;
 		w *= myself.dpr;
 		h *= myself.dpr;
 		myself.mainCamera.aspect = w / h;
@@ -120,11 +121,12 @@ function MFSViewer(div, settings) {
 		texturePrecision = THREE.UnsignedByteType;
 		this.log('UNSIGNED BYTE texture precision will be used.');
 	}
+	texturePrecision = THREE.FloatType;
 
 	// set up textures
 	var bufferSettings = {
-		minFilter: THREE.NearestFilter,
-		magFilter: THREE.NearestFilter,
+		minFilter: THREE.LineaerFilter,
+		magFilter: THREE.LineaerFilter,
 		format: THREE.RGBAFormat,
 		type: texturePrecision
 	};
@@ -133,14 +135,18 @@ function MFSViewer(div, settings) {
 	this.newFrameBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
 
 	// initialize cameras
-	this.mainCamera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.1, 2000);
+	this.mainCamera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.1, 10000);
 	this.mainCamera.position.z = 7;
 	this.mixCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 	this.finalCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
+	this.light = new THREE.PointLight(0xffffff, 2, 0);
+	this.light.position.set(1, 1, 1);
+
 	// prepare scenes
 	this.mainScene = new THREE.Scene();
 	this.mainScene.add(this.mainCamera);
+	this.mainScene.add(this.light);
 	this.mixScene = new THREE.Scene();
 	this.mixScene.add(this.mixCamera);
 	this.finalScene = new THREE.Scene();
@@ -258,15 +264,33 @@ function MFSViewer(div, settings) {
 		animate();
 	};
 
-	var loader = new THREE.OBJLoader(manager);
-	loader.load(settings.objPath, function (object) {
-		object.traverse(function(child) {
-			if (child instanceof THREE.Mesh) {
-				child.material = myself.mainSceneShaderMaterial;
-			}
+	if (settings.objPath) {
+		var loader = new THREE.OBJLoader(manager);
+		loader.load(settings.objPath, function (object) {
+			object.traverse(function(child) {
+				if (child instanceof THREE.Mesh) {
+					console.log(child.material);
+					child.material = myself.mainSceneShaderMaterial;
+				}
+			} );
+			myself.mainScene.add(object);
 		} );
-		myself.mainScene.add(object);
-	} );
+	}
+
+	if (settings.jsonPath) {
+		var loader = new THREE.JSONLoader(manager);
+		loader.setTexturePath("obj/crytek-sponza/textures/")
+		loader.load(settings.jsonPath, function (geom, mats) {
+			// myself.mainSceneShaderMaterial
+			mats.forEach(function(mat) {
+				if (mat.map) {
+					mat.map.wrapS = THREE.RepeatWrapping;
+					mat.map.wrapT = THREE.RepeatWrapping;
+				}
+			} );
+			myself.mainScene.add(new THREE.Mesh(geom, new THREE.MeshFaceMaterial(mats)));
+		} );
+	}
 
 	// load quad for finalScene
 	this.mixQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), this.mixSceneShaderMaterial);
@@ -283,12 +307,12 @@ function MFSViewer(div, settings) {
 	this.controls.addEventListener('change', this.requestRender);
 	this.controls.target.set(0, 0, 0);
 	this.controls.rotateSpeed = 5.0;
-	this.controls.zoomSpeed = 1.2;
-	this.controls.panSpeed = 0.8;
+	this.controls.zoomSpeed = 20;
+	this.controls.panSpeed = 100;
 	this.controls.noZoom = false;
 	this.controls.noPan = false;
 	this.controls.staticMoving = true;
-	this.controls.dynamicDampingFactor = 0.3;
+	this.controls.dynamicDampingFactor = 0;
 	this.controls.keys = [ 65, 83, 68 ];
 
 	// set up gui
@@ -296,13 +320,13 @@ function MFSViewer(div, settings) {
 	this.gui.width = 300;
 	var guiOptions = {
 		"ViewerID(ReadOnly)": this.id,
-		targetFrameCount: "64",
+		targetFrameCount: 64,
 		antiAliasing: this.mainSceneShaderMaterial.uniforms.antiAliasing.value,
 		minimumFrameTime: 0.0,
 		"ignoreTargetFrameCount": this.renderAlways
 	};
 	var updateTargetFrameCount = function() {
-		var newFrameCountTarget = parseFloat(guiOptions.targetFrameCount).toFixed(0);
+		var newFrameCountTarget = guiOptions.targetFrameCount;
 		if (newFrameCountTarget != myself.frameCountTarget && newFrameCountTarget > 0) {
 			myself.frameCountTarget = newFrameCountTarget;
 			myself.requestRender();
@@ -311,13 +335,13 @@ function MFSViewer(div, settings) {
 	var updateRenderSettings = function () {
 		myself.mainSceneShaderMaterial.uniforms.antiAliasing.value = guiOptions.antiAliasing;
 		myself.minimumFrameTime = guiOptions.minimumFrameTime;
-		myself.renderAlways = guiOptions["ignoreTargetFrameCount"];
+		myself.renderAlways = guiOptions.ignoreTargetFrameCount;
 		myself.requestRender();
 	}
 	updateTargetFrameCount();
 	updateRenderSettings();
 	this.gui.add(guiOptions, "ViewerID(ReadOnly)");
-	this.gui.add(guiOptions, "targetFrameCount").onChange(updateTargetFrameCount);
+	this.gui.add(guiOptions, "targetFrameCount", 1, 128).onChange(updateTargetFrameCount);
 	this.gui.add(guiOptions, "ignoreTargetFrameCount").onChange(updateRenderSettings);
 	this.gui.add(guiOptions, "antiAliasing").onChange(updateRenderSettings);
 	this.gui.add(guiOptions, "minimumFrameTime", 0, 500).onChange(updateRenderSettings);
