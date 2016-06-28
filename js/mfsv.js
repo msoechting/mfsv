@@ -41,8 +41,10 @@ function MFSViewer(div, settings) {
 		if (this.effectOptions.antiAliasing) {
 			var xRand = Math.random() - 0.5;
 			var yRand = Math.random() - 0.5;
-			this.mixSceneShaderMaterial.uniforms.aaNdcOffset.value.x = this.debugOptions.aaNdcOffsetMultiplier * 2 * xRand / (this.width);
-			this.mixSceneShaderMaterial.uniforms.aaNdcOffset.value.y = this.debugOptions.aaNdcOffsetMultiplier * 2 * yRand / (this.height);
+			for (i = 0; i < this.allMaterials.length; i++) {
+				this.allMaterials[i].ndcOffset.x = this.debugOptions.aaNdcOffsetMultiplier * 2 * xRand / this.width;
+				this.allMaterials[i].ndcOffset.y = this.debugOptions.aaNdcOffsetMultiplier * 2 * yRand / this.height;
+			}
 		}
 		if (this.effectOptions.softShadows) {
 			var xRand = 0.000005 * (Math.random() - 0.5);
@@ -162,22 +164,6 @@ function MFSViewer(div, settings) {
 	this.finalScene.add(this.finalCamera);
 
 	// load shaders
-	var mainSceneVertexShader = " \n"+
-		"// switch on high precision floats \n"+
-		"#ifdef GL_ES \n"+
-		"precision highp float; \n"+
-		"#endif \n"+
-		"\n"+
-		"uniform bool antiAliasing; \n"+
-		"uniform vec2 aaNdcOffset; \n"+
-		"\n"+
-		"void main() { \n"+
-		"		vec4 ndcVertex = projectionMatrix * modelViewMatrix * vec4(position, 1.0); \n"+
-		"		if (antiAliasing) { \n"+
-		"			ndcVertex.xy += aaNdcOffset * ndcVertex.w; \n"+
-		"		} \n"+
-		"		gl_Position = ndcVertex; \n"+
-		"}";
 	var mixSceneVertexShader = " \n"+
 		"// switch on high precision floats \n"+
 		"#ifdef GL_ES \n"+
@@ -206,8 +192,6 @@ function MFSViewer(div, settings) {
 
 	this.mixSceneShaderMaterial = new THREE.ShaderMaterial({
 		uniforms: {
-			antiAliasing: { value: settings.antiAliasing != undefined ? settings.antiAliasing : true },
-			aaNdcOffset: { value: new THREE.Vector2(0.0, 0.0) },
 			lastFrame: { value: this.firstAccumBuffer.texture },
 			newFrame: { value: this.firstAccumBuffer.texture },
 			weight: { value: 0.0 },
@@ -230,9 +214,12 @@ function MFSViewer(div, settings) {
 	if (settings.objPath) {
 		var loader = new THREE.OBJLoader(manager);
 		loader.load(settings.objPath, function (object) {
+			myself.allMaterials = new Array;
 			object.traverse(function(child) {
 				if (child instanceof THREE.Mesh) {
 					child.material = new THREE.MeshLambertMaterial();
+					myself.allMaterials.push(child.material);
+					child.material.ndcOffset = new THREE.Vector2(0.0, 0.0);
 				}
 			} );
 			myself.model = object;
@@ -244,12 +231,15 @@ function MFSViewer(div, settings) {
 		var loader = new THREE.JSONLoader(manager);
 		loader.setTexturePath(settings.jsonPath.substring(0, settings.jsonPath.lastIndexOf("/"))+"/textures/")
 		loader.load(settings.jsonPath, function (geometry, materials) {
+			myself.allMaterials = new Array;
 			// enable repeat texture mode
 			materials.forEach(function(mat) {
 				if (mat.map) {
 					mat.map.wrapS = THREE.RepeatWrapping;
 					mat.map.wrapT = THREE.RepeatWrapping;
 				}
+				myself.allMaterials.push(mat);
+				mat.ndcOffset = new THREE.Vector2(0.0, 0.0);
 			} );
 
 			// normalize model size
@@ -297,7 +287,7 @@ function MFSViewer(div, settings) {
 		"ignoreTargetFrameCount": this.renderAlways
 	};
 	this.effectOptions = {
-		antiAliasing: this.mixSceneShaderMaterial.uniforms.antiAliasing.value,
+		antiAliasing: true,
 		softShadows: true
 	};
 	this.lightOptions = {
