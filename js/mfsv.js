@@ -47,8 +47,8 @@ function MFSViewer(div, settings) {
 			}
 		}
 		if (this.effectOptions.softShadows) {
-			var xRand = 0.000005 * (Math.random() - 0.5);
-			var yRand = 0.000005 * (Math.random() - 0.5);
+			var xRand = this.debugOptions.ssLightOffsetMultiplier * (Math.random() - 0.5);
+			var yRand = this.debugOptions.ssLightOffsetMultiplier * (Math.random() - 0.5);
 			this.light.position.set(this.light.basePosition.x + xRand, this.light.basePosition.y + yRand, this.light.basePosition.z);
 		}
 
@@ -295,7 +295,8 @@ function MFSViewer(div, settings) {
 		followCamera: true
 	};
 	this.debugOptions = {
-		aaNdcOffsetMultiplier: 1.0
+		aaNdcOffsetMultiplier: 1.0,
+		ssLightOffsetMultiplier: 0.027
 	};
 	this.updateTargetFrameCount = function() {
 		var newFrameCountTarget = myself.guiOptions.targetFrameCount;
@@ -345,5 +346,6 @@ function MFSViewer(div, settings) {
 	f3.add(this.lightOptions, "followCamera").onChange(this.updateLightMode);
 	f3.add(this.lightOptions, "lightIntensity", 1, 5).onChange(this.updateLightSettings);
 	var f4 = this.gui.addFolder("Debugging");
-	f4.add(this.debugOptions, "aaNdcOffsetMultiplier", 1, 300).onChange(this.updateRenderSettings);
+	f4.add(this.debugOptions, "aaNdcOffsetMultiplier", 1, 300).onChange(this.requestRender);
+	f4.add(this.debugOptions, "ssLightOffsetMultiplier").onChange(this.requestRender);
 }
