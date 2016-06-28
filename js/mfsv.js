@@ -328,8 +328,8 @@ function MFSViewer(div, settings) {
 		} else {
 			myself.mainCamera.remove(myself.light);
 			myself.mainScene.add(myself.light);
-			myself.light.basePosition = myself.mainCamera.position;
-			myself.light.position.set(myself.mainCamera.position.x, myself.mainCamera.position.y, myself.mainCamera.position.z);
+			myself.light.basePosition = myself.mainCamera.position.clone();
+			myself.light.position.set(myself.light.basePosition.x, myself.light.basePosition.y, myself.light.basePosition.z);
 			myself.light.target = myself.model;
 		}
 		myself.requestRender();
