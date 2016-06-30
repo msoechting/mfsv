@@ -26,7 +26,7 @@ function setupEval()
 
 	stats2.showPanel(2);
 	stats2.dom.setAttribute('style', '');
-	
+
   var DOMContentLoadedStart = (window.performance.timing.domContentLoadedEventStart - window.performance.timing.navigationStart) * 0.001;
   var DOMContentLoadedEnd = (window.performance.timing.domContentLoadedEventEnd - window.performance.timing.navigationStart) * 0.001;
 
@@ -140,7 +140,7 @@ function benchmark_tick()
 		{
 			$('#benchmark').removeClass('disabled');
 			benchmark_stage = -1;
-			window.mfsv.renderAlways = false;
+			window.mfsv.renderAlways = window.mfsv.guiOptions.renderAlways;
 		}
 		break;
 	}

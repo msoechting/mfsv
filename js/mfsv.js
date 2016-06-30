@@ -1,17 +1,14 @@
 var nextID = 1;
 
 window.onload = function() {
-	try { setupEval(); } catch(err) { console.log("setupEval failed, no stats available.") }
 	var divs = document.getElementsByClassName("mfsviewer");
 	for (var i = 0; i < divs.length; i++) {
 		new MFSViewer(divs[i], { objPath: divs[i].getAttribute("objPath"), jsonPath: divs[i].getAttribute("jsonPath") });
 	}
+	try { setupEval(); } catch(err) { console.log("setupEval failed, no stats available.") }
 }
 
 function MFSViewer(div, settings) {
-	var myself = this;
-	window.mfsv = this;
-
 	this.animate = function() {
 		myself.controls.update();
 		if (myself.frameCount < myself.frameCountTarget || myself.renderAlways) {
@@ -89,152 +86,14 @@ function MFSViewer(div, settings) {
 		myself.requestRender();
 	}
 
-	// set width & height
-	this.fixedSize = !(settings == undefined || settings.width == undefined || settings.height == undefined);
-	this.width = settings.width ? settings.width : div.offsetParent.offsetWidth;
-	this.height = settings.height ? settings.height : div.offsetParent.offsetHeight;
-	window.addEventListener('resize', this.resize, false);
-	this.dpr = (window.devicePixelRatio > 0) ? window.devicePixelRatio : 1;
-
-	// misc vars
-	this.frameCount = 0;
-	this.frameCountTarget = 64;
-	this.bufferFlipFlop = true;
-	this.id = nextID++;
-
-	// prepare renderer
-	this.renderer = new THREE.WebGLRenderer( { alpha: true } );
-	this.renderer.shadowMap.enabled = true;
-	this.renderer.setSize(this.width, this.height);
-	this.renderer.setPixelRatio(this.dpr);
-	this.width = this.width * this.dpr;
-	this.height = this.height * this.dpr;
-	this.renderer.setClearColor(0x000000, 0);
-	this.lastRender = new Date().getTime();
-	this.renderAlways = false;
-
-	// DETECT TEXTURE PRECISION
-	// .getExtension activates the extension
-	// 		WEBGL_color_buffer_float -> WebGL 1 (https://developer.mozilla.org/en-US/docs/Web/API/WEBGL_color_buffer_float)
-	// 		EXT_color_buffer_float & EXT_color_buffer_half_float -> WebGL 2 (https://developer.mozilla.org/en-US/docs/Web/API/EXT_color_buffer_float)
-	var texturePrecision;
-	if (this.renderer.context.getExtension('WEBGL_color_buffer_float') !== null || this.renderer.context.getExtension('EXT_color_buffer_float') !== null) {
-		texturePrecision = THREE.FloatType;
-		this.log('FLOAT texture precision supported and will be used.');
-	} else if (this.renderer.context.getExtension('EXT_color_buffer_half_float') !== null) {
-		texturePrecision = THREE.HalfFloatType;
-		this.log('HALFFLOAT texture precision supported and will be used.');
-	} else {
-		texturePrecision = THREE.UnsignedByteType;
-		this.log('UNSIGNED BYTE texture precision will be used.');
-	}
-
-	// set up textures
-	var bufferSettings = {
-		minFilter: THREE.LinearFilter,
-		magFilter: THREE.LinearFilter,
-		format: THREE.RGBAFormat,
-		type: texturePrecision
-	};
-	this.firstAccumBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
-	this.secondAccumBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
-	this.newFrameBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
-
-	// initialize cameras
-	this.mainCamera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.1, 10000);
-	this.mainCamera.position.z = 1;
-	this.mixCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-	this.finalCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-
-	// set up light
-	this.light = new THREE.SpotLight(0xffffff, 2, 20);
-	this.light.castShadow = true;
-	this.light.shadow.mapSize.width = 1024;
-	this.light.shadow.mapSize.height = 1024;
-	this.light.shadow.camera.near = 0.01;
-	this.light.shadow.camera.far = 4000;
-	this.light.shadow.camera.fov = 75;
-
-	// prepare scenes
-	this.mainScene = new THREE.Scene();
-	this.mainScene.add(this.mainCamera);
-	this.mixScene = new THREE.Scene();
-	this.mixScene.add(this.mixCamera);
-	this.finalScene = new THREE.Scene();
-	this.finalScene.add(this.finalCamera);
-
-	// load shaders
-	var mixSceneVertexShader = " \n"+
-		"// switch on high precision floats \n"+
-		"#ifdef GL_ES \n"+
-		"precision highp float; \n"+
-		"#endif \n"+
- 		"\n"+
-		"void main() { \n"+
-		"		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); \n"+
-		"}";
-	var mixSceneFragmentShader = " \n"+
-		"// switch on high precision floats \n"+
-		"#ifdef GL_ES \n"+
-		"precision highp float; \n"+
-		"#endif \n"+
- 		"\n"+
-		"uniform vec2 viewport; \n"+
-		"uniform float weight; \n"+
-		"uniform sampler2D newFrame; \n"+
-		"uniform sampler2D lastFrame; \n"+
- 		"\n"+
-		"void main() { \n"+
-		"		vec4 newColor = texture2D(newFrame, gl_FragCoord.xy / viewport.xy); \n"+
-		"		vec4 accColor = texture2D(lastFrame, gl_FragCoord.xy / viewport.xy); \n"+
-		"		gl_FragColor = mix(newColor, accColor, weight); \n"+
-		"}";
-
-	this.mixSceneShaderMaterial = new THREE.ShaderMaterial({
-		uniforms: {
-			lastFrame: { value: this.firstAccumBuffer.texture },
-			newFrame: { value: this.firstAccumBuffer.texture },
-			weight: { value: 0.0 },
-			viewport: { value: new THREE.Vector2(this.width, this.height) }
-		},
-		vertexShader: mixSceneVertexShader,
-		fragmentShader: mixSceneFragmentShader
-	});
-
-	// load and add our object to the scene
-	var manager = new THREE.LoadingManager();
-	manager.onProgress = function (item, loaded, total) {
-		myself.log("Loaded item " + item + " (" + loaded + " of " + total + " objects)");
-	};
-	manager.onLoad = function () {
-		myself.log("Loading finished!");
-		myself.animate();
-	};
-
-	if (settings.objPath) {
-		var loader = new THREE.OBJLoader(manager);
-		loader.load(settings.objPath, function (object) {
-			myself.allMaterials = new Array;
-			object.traverse(function(child) {
-				if (child instanceof THREE.Mesh) {
-					child.material = new THREE.MeshLambertMaterial();
-					myself.allMaterials.push(child.material);
-					child.material.ndcOffset = new THREE.Vector2(0.0, 0.0);
-				}
-			} );
-			myself.model = object;
-			myself.mainScene.add(object);
-		} );
-	}
-
-	if (settings.jsonPath) {
+	this.loadJSONModel = function(jsonPath, manager, texturePath, scene, myself) {
 		var loader = new THREE.JSONLoader(manager);
-		loader.setTexturePath(settings.jsonPath.substring(0, settings.jsonPath.lastIndexOf("/"))+"/textures/")
+		loader.setTexturePath(texturePath);
 		loader.load(settings.jsonPath, function (geometry, materials) {
-			myself.allMaterials = new Array;
-			// enable repeat texture mode
+			// set up materials
 			materials.forEach(function(mat) {
 				if (mat.map) {
+					// enable repeat texture mode
 					mat.map.wrapS = THREE.RepeatWrapping;
 					mat.map.wrapT = THREE.RepeatWrapping;
 				}
@@ -250,102 +109,260 @@ function MFSViewer(div, settings) {
 			myself.model = new THREE.Mesh(geometry, new THREE.MeshFaceMaterial(materials));
 			myself.model.castShadow = true;
 			myself.model.receiveShadow = true;
-			myself.mainScene.add(myself.model);
+			scene.add(myself.model);
 		} );
 	}
 
-	// load quad for finalScene
-	this.mixQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), this.mixSceneShaderMaterial);
-	this.mixScene.add(this.mixQuad);
-	this.finalQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), new THREE.MeshBasicMaterial( { transparent: true } ));
-	this.finalScene.add(this.finalQuad);
+	/**
+	* Loads an untextured, raw .obj model into the specified scene.
+	*/
+	this.loadPlainOBJModel = function(objPath, manager, scene, myself) {
+		var loader = new THREE.OBJLoader(manager);
+		loader.load(settings.objPath, function (object) {
+			object.traverse(function(child) {
+				if (child instanceof THREE.Mesh) {
+					child.material = new THREE.MeshLambertMaterial();
+					child.material.ndcOffset = new THREE.Vector2(0.0, 0.0);
+					myself.allMaterials.push(child.material);
+				}
+			} );
+			myself.model = object;
+			scene.add(object);
+		} );
+	}
 
-	// attach the render-supplied DOM element
-	div.appendChild(this.renderer.domElement);
-	this.div = div;
+	this.initialize = function(settings) {
+		function getURLParameter(name) {
+			return decodeURIComponent((new RegExp('[?|&]' + name + '=' + '([^&;]+?)(&|#|;|$)').exec(location.search) || [null, ''])[1].replace(/\+/g, '%20')) || null;
+		}
 
-	// configure trackball controls
-	this.controls = new THREE.TrackballControls(this.mainCamera, this.renderer.domElement);
-	this.controls.addEventListener('change', this.requestRender);
-	this.controls.target.set(0, 0, 0);
-	this.controls.rotateSpeed = 5.0;
-	this.controls.zoomSpeed = 2;
-	this.controls.panSpeed = 10;
-	this.controls.noZoom = false;
-	this.controls.noPan = false;
-	this.controls.staticMoving = true;
-	this.controls.dynamicDampingFactor = 0;
-	this.controls.keys = [ 65, 83, 68 ];
+		// set width & height
+		this.fixedSize = (settings.width || settings.height);
+		this.width = settings.width || div.offsetParent.offsetWidth;
+		this.height = settings.height || div.offsetParent.offsetHeight;
+		this.dpr = Math.ceil(window.devicePixelRatio);
+		window.addEventListener('resize', this.resize, false);
 
-	// set up gui
-	this.gui = new dat.GUI();
-	this.gui.width = 300;
-	this.guiOptions = {
-		"ViewerID(ReadOnly)": this.id,
-		targetFrameCount: 64,
-		minimumFrameTime: 0.0,
-		"ignoreTargetFrameCount": this.renderAlways
-	};
-	this.effectOptions = {
-		antiAliasing: true,
-		softShadows: true
-	};
-	this.lightOptions = {
-		lightIntensity: 2.0,
-		followCamera: true
-	};
-	this.debugOptions = {
-		aaNdcOffsetMultiplier: 1.0,
-		ssLightOffsetMultiplier: 0.027
-	};
-	this.updateTargetFrameCount = function() {
-		var newFrameCountTarget = myself.guiOptions.targetFrameCount;
-		if (newFrameCountTarget != myself.frameCountTarget && newFrameCountTarget > 0) {
-			myself.frameCountTarget = newFrameCountTarget;
+		// misc vars
+		this.frameCount = 0;
+		this.frameCountTarget = 64;
+		this.bufferFlipFlop = true;
+		this.id = nextID++;
+
+		// prepare renderer
+		this.renderer = new THREE.WebGLRenderer( { alpha: true } );
+		this.renderer.shadowMap.enabled = true;
+		this.renderer.setSize(this.width, this.height);
+		this.renderer.setPixelRatio(this.dpr);
+		this.renderer.setClearColor(0x000000, 0);
+		this.width = this.width * this.dpr;
+		this.height = this.height * this.dpr;
+		this.lastRender = new Date().getTime();
+		this.renderAlways = false;
+
+		// DETECT TEXTURE PRECISION
+		// .getExtension activates the extension
+		// 		WEBGL_color_buffer_float -> WebGL 1 (https://developer.mozilla.org/en-US/docs/Web/API/WEBGL_color_buffer_float)
+		// 		EXT_color_buffer_float & EXT_color_buffer_half_float -> WebGL 2 (https://developer.mozilla.org/en-US/docs/Web/API/EXT_color_buffer_float)
+		var texturePrecision;
+		if (this.renderer.context.getExtension('WEBGL_color_buffer_float') !== null || this.renderer.context.getExtension('EXT_color_buffer_float') !== null || getURLParameter('forcefloat')) {
+			texturePrecision = THREE.FloatType;
+			this.log('FLOAT texture precision will be used.');
+		} else if (this.renderer.context.getExtension('EXT_color_buffer_half_float') !== null) {
+			texturePrecision = THREE.HalfFloatType;
+			this.log('HALFFLOAT texture precision will be used.');
+		} else {
+			texturePrecision = THREE.UnsignedByteType;
+			this.log('UNSIGNED BYTE texture precision will be used.');
+		}
+
+		// set up textures
+		var bufferSettings = {
+			minFilter: THREE.LinearFilter,
+			magFilter: THREE.LinearFilter,
+			format: THREE.RGBAFormat,
+			type: texturePrecision
+		};
+		this.firstAccumBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
+		this.secondAccumBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
+		this.newFrameBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
+
+		// initialize cameras
+		this.mainCamera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.1, 10000);
+		this.mainCamera.position.z = 1;
+		this.mixCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+		this.finalCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+
+		// set up light
+		this.light = new THREE.SpotLight(0xffffff, 2, 20);
+		this.light.castShadow = true;
+		this.light.shadow.mapSize.width = parseInt(getURLParameter("shadowMapSize")) || 1024;
+		this.light.shadow.mapSize.height = parseInt(getURLParameter("shadowMapSize")) || 1024;
+		this.light.shadow.camera.near = 0.001;
+		this.light.shadow.camera.far = 4000;
+		this.light.shadow.camera.fov = 75;
+
+		// prepare scenes
+		this.mainScene = new THREE.Scene();
+		this.mainScene.add(this.mainCamera);
+		this.mixScene = new THREE.Scene();
+		this.mixScene.add(this.mixCamera);
+		this.finalScene = new THREE.Scene();
+		this.finalScene.add(this.finalCamera);
+
+		// load shaders
+		var mixSceneVertexShader = " \n"+
+			"// switch on high precision floats \n"+
+			"#ifdef GL_ES \n"+
+			"precision highp float; \n"+
+			"#endif \n"+
+	 		"\n"+
+			"void main() { \n"+
+			"		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); \n"+
+			"}";
+		var mixSceneFragmentShader = " \n"+
+			"// switch on high precision floats \n"+
+			"#ifdef GL_ES \n"+
+			"precision highp float; \n"+
+			"#endif \n"+
+	 		"\n"+
+			"uniform vec2 viewport; \n"+
+			"uniform float weight; \n"+
+			"uniform sampler2D newFrame; \n"+
+			"uniform sampler2D lastFrame; \n"+
+	 		"\n"+
+			"void main() { \n"+
+			"		vec4 newColor = texture2D(newFrame, gl_FragCoord.xy / viewport.xy); \n"+
+			"		vec4 accColor = texture2D(lastFrame, gl_FragCoord.xy / viewport.xy); \n"+
+			"		gl_FragColor = mix(newColor, accColor, weight); \n"+
+			"}";
+
+		this.mixSceneShaderMaterial = new THREE.ShaderMaterial({
+			uniforms: {
+				lastFrame: { value: this.firstAccumBuffer.texture },
+				newFrame: { value: this.firstAccumBuffer.texture },
+				weight: { value: 0.0 },
+				viewport: { value: new THREE.Vector2(this.width, this.height) }
+			},
+			vertexShader: mixSceneVertexShader,
+			fragmentShader: mixSceneFragmentShader
+		});
+
+		// load and add our object to the scene
+		var manager = new THREE.LoadingManager();
+		manager.onProgress = function (item, loaded, total) {
+			myself.log("Loaded item " + item + " (" + loaded + " of " + total + " objects)");
+		};
+		manager.onLoad = function () {
+			myself.log("Loading finished!");
+			myself.animate();
+		};
+
+		// remember all materials so we can set the NDC offset for each individual shader later
+		this.allMaterials = new Array;
+		if (settings.objPath) {
+			this.loadPlainOBJModel(settings.objPath, manager, this.mainScene, myself);
+		}
+		if (settings.jsonPath) {
+			this.loadJSONModel(settings.jsonPath, manager, settings.jsonPath.substring(0, settings.jsonPath.lastIndexOf("/"))+"/textures/", this.mainScene, myself);
+		}
+
+		// load quad for finalScene
+		this.mixQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), this.mixSceneShaderMaterial);
+		this.mixScene.add(this.mixQuad);
+		this.finalQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), new THREE.MeshBasicMaterial( { transparent: true } ));
+		this.finalScene.add(this.finalQuad);
+
+		// attach the render-supplied DOM element
+		div.appendChild(this.renderer.domElement);
+		this.div = div;
+
+		// configure trackball controls
+		this.controls = new THREE.TrackballControls(this.mainCamera, this.renderer.domElement);
+		this.controls.addEventListener('change', this.requestRender);
+		this.controls.target.set(0, 0, 0);
+		this.controls.rotateSpeed = 5.0;
+		this.controls.zoomSpeed = 2;
+		this.controls.panSpeed = 10;
+		this.controls.noZoom = false;
+		this.controls.noPan = false;
+		this.controls.staticMoving = true;
+		this.controls.dynamicDampingFactor = 0;
+		this.controls.keys = [ 65, 83, 68 ];
+
+		// set up gui
+		this.gui = new dat.GUI();
+		this.gui.width = 300;
+		this.guiOptions = {
+			"ViewerID(ReadOnly)": this.id,
+			targetFrameCount: 64,
+			minimumFrameTime: 0.0,
+			renderAlways: this.renderAlways
+		};
+		this.effectOptions = {
+			antiAliasing: true,
+			softShadows: true
+		};
+		this.lightOptions = {
+			lightIntensity: 2.0,
+			followCamera: true
+		};
+		this.debugOptions = {
+			aaNdcOffsetMultiplier: 1.0,
+			ssLightOffsetMultiplier: 0.027
+		};
+		this.updateTargetFrameCount = function() {
+			var newFrameCountTarget = myself.guiOptions.targetFrameCount;
+			if (newFrameCountTarget != myself.frameCountTarget && newFrameCountTarget > 0) {
+				myself.frameCountTarget = newFrameCountTarget;
+				myself.requestRender();
+			}
+		};
+		this.updateRenderSettings = function () {
+			myself.minimumFrameTime = myself.guiOptions.minimumFrameTime;
+			myself.renderAlways = myself.guiOptions.renderAlways;
 			myself.requestRender();
 		}
-	};
-	this.updateRenderSettings = function () {
-		myself.minimumFrameTime = myself.guiOptions.minimumFrameTime;
-		myself.renderAlways = myself.guiOptions.ignoreTargetFrameCount;
-		myself.requestRender();
-	}
-	this.updateLightMode = function () {
-		if (myself.lightOptions.followCamera) {
-			myself.mainScene.remove(myself.light);
-			myself.mainCamera.add(myself.light);
-			myself.light.basePosition = new THREE.Vector3(0, 0, 0.0001);
-			myself.light.target = myself.mainCamera;
-		} else {
-			myself.mainCamera.remove(myself.light);
-			myself.mainScene.add(myself.light);
-			myself.light.basePosition = myself.mainCamera.position.clone();
-			myself.light.position.set(myself.light.basePosition.x, myself.light.basePosition.y, myself.light.basePosition.z);
-			myself.light.target = myself.model;
+		this.updateLightMode = function () {
+			if (myself.lightOptions.followCamera) {
+				myself.mainScene.remove(myself.light);
+				myself.mainCamera.add(myself.light);
+				myself.light.basePosition = new THREE.Vector3(0, 0, 0.2);
+				myself.light.target = myself.mainCamera;
+			} else {
+				myself.mainCamera.remove(myself.light);
+				myself.mainScene.add(myself.light);
+				myself.light.basePosition.add(myself.mainCamera.position);
+				myself.light.position.copy(myself.light.basePosition);
+				myself.light.target = myself.model;
+			}
+			myself.requestRender();
 		}
-		myself.requestRender();
-	}
-	this.updateLightSettings = function () {
-		myself.light.intensity = myself.lightOptions.lightIntensity;
-		myself.requestRender();
-	}
-	this.updateTargetFrameCount();
-	this.updateRenderSettings();
-	this.updateLightSettings();
-	this.updateLightMode();
+		this.updateLightSettings = function () {
+			myself.light.intensity = myself.lightOptions.lightIntensity;
+			myself.requestRender();
+		}
+		this.updateTargetFrameCount();
+		this.updateRenderSettings();
+		this.updateLightSettings();
+		this.updateLightMode();
 
-	this.gui.add(this.guiOptions, "ViewerID(ReadOnly)");
-	var f1 = this.gui.addFolder("Multi-frame Sampling");
-	f1.add(this.guiOptions, "targetFrameCount", 1, 128).onChange(this.updateTargetFrameCount);
-	f1.add(this.guiOptions, "ignoreTargetFrameCount").onChange(this.updateRenderSettings);
-	f1.add(this.guiOptions, "minimumFrameTime", 0, 500).onChange(this.updateRenderSettings);
-	var f2 = this.gui.addFolder("Effects");
-	f2.add(this.effectOptions, "antiAliasing").onChange(this.updateRenderSettings);
-	f2.add(this.effectOptions, "softShadows").onChange(this.updateRenderSettings);
-	var f3 = this.gui.addFolder("Light");
-	f3.add(this.lightOptions, "followCamera").onChange(this.updateLightMode);
-	f3.add(this.lightOptions, "lightIntensity", 1, 5).onChange(this.updateLightSettings);
-	var f4 = this.gui.addFolder("Debugging");
-	f4.add(this.debugOptions, "aaNdcOffsetMultiplier", 1, 300).onChange(this.requestRender);
-	f4.add(this.debugOptions, "ssLightOffsetMultiplier").onChange(this.requestRender);
+		this.gui.add(this.guiOptions, "ViewerID(ReadOnly)");
+		var f1 = this.gui.addFolder("Multi-frame Sampling");
+		f1.add(this.guiOptions, "targetFrameCount", 1, 128).onChange(this.updateTargetFrameCount);
+		f1.add(this.guiOptions, "renderAlways").onChange(this.updateRenderSettings);
+		f1.add(this.guiOptions, "minimumFrameTime", 0, 500).onChange(this.updateRenderSettings);
+		var f2 = this.gui.addFolder("Effects");
+		f2.add(this.effectOptions, "antiAliasing").onChange(this.updateRenderSettings);
+		f2.add(this.effectOptions, "softShadows").onChange(this.updateRenderSettings);
+		var f3 = this.gui.addFolder("Light");
+		f3.add(this.lightOptions, "followCamera").onChange(this.updateLightMode);
+		f3.add(this.lightOptions, "lightIntensity", 1, 5).onChange(this.updateLightSettings);
+		var f4 = this.gui.addFolder("Debugging");
+		f4.add(this.debugOptions, "aaNdcOffsetMultiplier", 1, 300).onChange(this.requestRender);
+		f4.add(this.debugOptions, "ssLightOffsetMultiplier").onChange(this.requestRender);
+	}
+
+	var myself = window.mfsv = this;
+	this.initialize(settings);
 }
