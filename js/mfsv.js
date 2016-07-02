@@ -10,21 +10,21 @@ window.onload = function() {
 
 function MFSViewer(div, settings) {
 	this.animate = function() {
-		myself.controls.update();
-		if (myself.frameCount < myself.frameCountTarget || myself.renderAlways) {
-			myself.render();
-			//myself.log("Rendered " + myself.frameCount + "/" + myself.frameCountTarget + " frames");
+		_this.controls.update();
+		if (_this.frameCount < _this.frameCountTarget || _this.renderAlways) {
+			_this.render();
+			//_this.log("Rendered " + _this.frameCount + "/" + _this.frameCountTarget + " frames");
 		}
-		requestAnimationFrame(myself.animate);
+		requestAnimationFrame(_this.animate);
 	};
 
 	this.log = function(logContent) {
-		console.log("[MFSViewer #"+myself.id+"]", logContent);
+		console.log("[MFSViewer #"+_this.id+"]", logContent);
 	}
 
 	this.requestRender = function() {
-		myself.log("Requesting new frame set!");
-		myself.frameCount = 0;
+		_this.log("Requesting new frame set!");
+		_this.frameCount = 0;
 	}
 
 	this.render = function() {
@@ -46,7 +46,8 @@ function MFSViewer(div, settings) {
 		if (this.effectOptions.softShadows) {
 			var xRand = this.debugOptions.ssLightOffsetMultiplier * (Math.random() - 0.5);
 			var yRand = this.debugOptions.ssLightOffsetMultiplier * (Math.random() - 0.5);
-			this.light.position.set(this.light.basePosition.x + xRand, this.light.basePosition.y + yRand, this.light.basePosition.z);
+			var zRand = this.debugOptions.ssLightOffsetMultiplier * (Math.random() - 0.5);
+			this.light.position.set(this.light.basePosition.x + xRand, this.light.basePosition.y + yRand, this.light.basePosition.z + zRand);
 		}
 
 		// generate new frame from main scene
@@ -68,25 +69,25 @@ function MFSViewer(div, settings) {
 	}
 
 	this.resize = function() {
-		if (myself.fixedSize) {
+		if (_this.fixedSize) {
 				return;
 		}
-		var w = myself.div.offsetParent.offsetWidth, h = myself.div.offsetParent.offsetHeight;
-		myself.renderer.setSize(w, h);
-		w *= myself.dpr;
-		h *= myself.dpr;
-		myself.mainCamera.aspect = w / h;
-		myself.mainCamera.updateProjectionMatrix();
-		myself.firstAccumBuffer.setSize(w, h);
-		myself.secondAccumBuffer.setSize(w, h);
-		myself.newFrameBuffer.setSize(w, h);
-		myself.mixSceneShaderMaterial.uniforms.viewport.value = new THREE.Vector2(w, h);
-		myself.width = w;
-		myself.height = h;
-		myself.requestRender();
+		var w = _this.div.offsetParent.offsetWidth, h = _this.div.offsetParent.offsetHeight;
+		_this.renderer.setSize(w, h);
+		w *= _this.dpr;
+		h *= _this.dpr;
+		_this.mainCamera.aspect = w / h;
+		_this.mainCamera.updateProjectionMatrix();
+		_this.firstAccumBuffer.setSize(w, h);
+		_this.secondAccumBuffer.setSize(w, h);
+		_this.newFrameBuffer.setSize(w, h);
+		_this.mixSceneShaderMaterial.uniforms.viewport.value = new THREE.Vector2(w, h);
+		_this.width = w;
+		_this.height = h;
+		_this.requestRender();
 	}
 
-	this.loadJSONModel = function(jsonPath, manager, texturePath, scene, myself) {
+	this.loadJSONModel = function(jsonPath, manager, texturePath, scene, _this) {
 		var loader = new THREE.JSONLoader(manager);
 		loader.setTexturePath(texturePath);
 		loader.load(settings.jsonPath, function (geometry, materials) {
@@ -97,7 +98,7 @@ function MFSViewer(div, settings) {
 					mat.map.wrapS = THREE.RepeatWrapping;
 					mat.map.wrapT = THREE.RepeatWrapping;
 				}
-				myself.allMaterials.push(mat);
+				_this.allMaterials.push(mat);
 				mat.ndcOffset = new THREE.Vector2(0.0, 0.0);
 			} );
 
@@ -106,27 +107,27 @@ function MFSViewer(div, settings) {
 			geometry = geometry.scale(s, s, s);
 
 			// configure & load model into scene
-			myself.model = new THREE.Mesh(geometry, new THREE.MeshFaceMaterial(materials));
-			myself.model.castShadow = true;
-			myself.model.receiveShadow = true;
-			scene.add(myself.model);
+			_this.model = new THREE.Mesh(geometry, new THREE.MeshFaceMaterial(materials));
+			_this.model.castShadow = true;
+			_this.model.receiveShadow = true;
+			scene.add(_this.model);
 		} );
 	}
 
 	/**
 	* Loads an untextured, raw .obj model into the specified scene.
 	*/
-	this.loadPlainOBJModel = function(objPath, manager, scene, myself) {
+	this.loadPlainOBJModel = function(objPath, manager, scene, _this) {
 		var loader = new THREE.OBJLoader(manager);
 		loader.load(settings.objPath, function (object) {
 			object.traverse(function(child) {
 				if (child instanceof THREE.Mesh) {
 					child.material = new THREE.MeshLambertMaterial();
 					child.material.ndcOffset = new THREE.Vector2(0.0, 0.0);
-					myself.allMaterials.push(child.material);
+					_this.allMaterials.push(child.material);
 				}
 			} );
-			myself.model = object;
+			_this.model = object;
 			scene.add(object);
 		} );
 	}
@@ -193,6 +194,14 @@ function MFSViewer(div, settings) {
 		this.mixCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 		this.finalCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
+		// prepare scenes
+		this.mainScene = new THREE.Scene();
+		this.mainScene.add(this.mainCamera);
+		this.mixScene = new THREE.Scene();
+		this.mixScene.add(this.mixCamera);
+		this.finalScene = new THREE.Scene();
+		this.finalScene.add(this.finalCamera);
+
 		// set up light
 		this.light = new THREE.SpotLight(0xffffff, 2, 20);
 		this.light.castShadow = true;
@@ -201,14 +210,7 @@ function MFSViewer(div, settings) {
 		this.light.shadow.camera.near = 0.001;
 		this.light.shadow.camera.far = 4000;
 		this.light.shadow.camera.fov = 75;
-
-		// prepare scenes
-		this.mainScene = new THREE.Scene();
-		this.mainScene.add(this.mainCamera);
-		this.mixScene = new THREE.Scene();
-		this.mixScene.add(this.mixCamera);
-		this.finalScene = new THREE.Scene();
-		this.finalScene.add(this.finalCamera);
+		this.mainScene.add(this.light);
 
 		// load shaders
 		var mixSceneVertexShader = " \n"+
@@ -251,20 +253,20 @@ function MFSViewer(div, settings) {
 		// load and add our object to the scene
 		var manager = new THREE.LoadingManager();
 		manager.onProgress = function (item, loaded, total) {
-			myself.log("Loaded item " + item + " (" + loaded + " of " + total + " objects)");
+			_this.log("Loaded item " + item + " (" + loaded + " of " + total + " objects)");
 		};
 		manager.onLoad = function () {
-			myself.log("Loading finished!");
-			myself.animate();
+			_this.log("Loading finished!");
+			_this.animate();
 		};
 
 		// remember all materials so we can set the NDC offset for each individual shader later
 		this.allMaterials = new Array;
 		if (settings.objPath) {
-			this.loadPlainOBJModel(settings.objPath, manager, this.mainScene, myself);
+			this.loadPlainOBJModel(settings.objPath, manager, this.mainScene, _this);
 		}
 		if (settings.jsonPath) {
-			this.loadJSONModel(settings.jsonPath, manager, settings.jsonPath.substring(0, settings.jsonPath.lastIndexOf("/"))+"/textures/", this.mainScene, myself);
+			this.loadJSONModel(settings.jsonPath, manager, settings.jsonPath.substring(0, settings.jsonPath.lastIndexOf("/"))+"/textures/", this.mainScene, _this);
 		}
 
 		// load quad for finalScene
@@ -312,35 +314,32 @@ function MFSViewer(div, settings) {
 			ssLightOffsetMultiplier: 0.027
 		};
 		this.updateTargetFrameCount = function() {
-			var newFrameCountTarget = myself.guiOptions.targetFrameCount;
-			if (newFrameCountTarget != myself.frameCountTarget && newFrameCountTarget > 0) {
-				myself.frameCountTarget = newFrameCountTarget;
-				myself.requestRender();
+			var newFrameCountTarget = _this.guiOptions.targetFrameCount;
+			if (newFrameCountTarget != _this.frameCountTarget && newFrameCountTarget > 0) {
+				_this.frameCountTarget = newFrameCountTarget;
+				_this.requestRender();
 			}
 		};
 		this.updateRenderSettings = function () {
-			myself.minimumFrameTime = myself.guiOptions.minimumFrameTime;
-			myself.renderAlways = myself.guiOptions.renderAlways;
-			myself.requestRender();
+			_this.minimumFrameTime = _this.guiOptions.minimumFrameTime;
+			_this.renderAlways = _this.guiOptions.renderAlways;
+			_this.requestRender();
 		}
 		this.updateLightMode = function () {
-			if (myself.lightOptions.followCamera) {
-				myself.mainScene.remove(myself.light);
-				myself.mainCamera.add(myself.light);
-				myself.light.basePosition = new THREE.Vector3(0, 0, 0.2);
-				myself.light.target = myself.mainCamera;
+			if (_this.lightOptions.followCamera) {
+				_this.light.basePosition = _this.mainCamera.position;
+				_this.light.position = _this.light.basePosition.clone();
+				_this.light.rotation = _this.mainCamera.rotation;
 			} else {
-				myself.mainCamera.remove(myself.light);
-				myself.mainScene.add(myself.light);
-				myself.light.basePosition.add(myself.mainCamera.position);
-				myself.light.position.copy(myself.light.basePosition);
-				myself.light.target = myself.model;
+				_this.light.basePosition = _this.light.basePosition.clone();
+				_this.light.position = _this.light.basePosition.clone();
+				_this.light.rotation = _this.light.rotation.clone();
 			}
-			myself.requestRender();
+			_this.requestRender();
 		}
 		this.updateLightSettings = function () {
-			myself.light.intensity = myself.lightOptions.lightIntensity;
-			myself.requestRender();
+			_this.light.intensity = _this.lightOptions.lightIntensity;
+			_this.requestRender();
 		}
 		this.updateTargetFrameCount();
 		this.updateRenderSettings();
@@ -363,6 +362,6 @@ function MFSViewer(div, settings) {
 		f4.add(this.debugOptions, "ssLightOffsetMultiplier").onChange(this.requestRender);
 	}
 
-	var myself = window.mfsv = this;
+	var _this = window.mfsv = this;
 	this.initialize(settings);
 }
