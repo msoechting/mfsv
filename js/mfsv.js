@@ -22,8 +22,10 @@ function MFSViewer(div, settings) {
 	}
 
 	this.requestRender = function() {
-		_this.log("Requesting new frame set!");
-		_this.frameCount = 0;
+		if(_this.frameCount != 0) {
+			_this.log("Requesting new frame set!");
+			_this.frameCount = 0;
+		}
 	}
 
 	this.render = function() {
@@ -372,11 +374,11 @@ function MFSViewer(div, settings) {
 		f3.add(this.lightOptions, "followCamera").onChange(this.updateLightMode);
 		f3.add(this.lightOptions, "lightIntensity", 1, 5).onChange(this.updateLightSettings);
 		var f4 = this.gui.addFolder("Depth of Field");
-		f4.add(this.depthOfFieldOptions, "focalDistance").onChange(this.requestRender);
+		f4.add(this.depthOfFieldOptions, "focalDistance", 0, 10).onChange(this.requestRender);
 		var f9 = this.gui.addFolder("Debugging");
 		f9.add(this.debugOptions, "aaNdcOffsetMultiplier", 1, 300).onChange(this.requestRender);
-		f9.add(this.debugOptions, "ssLightOffsetMultiplier").onChange(this.requestRender);
-		f9.add(this.debugOptions, "dofCoCPointMultiplier").onChange(this.requestRender);
+		f9.add(this.debugOptions, "ssLightOffsetMultiplier", 0, 0.1).onChange(this.requestRender);
+		f9.add(this.debugOptions, "dofCoCPointMultiplier", 0, 0.02).onChange(this.requestRender);
 	}
 
 	var _this = window.mfsv = this;
