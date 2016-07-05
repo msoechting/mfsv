@@ -141,6 +141,8 @@ function MFSViewer(div, settings) {
 				}
 			} );
 			_this.model = object;
+			_this.model.castShadow = true;
+			_this.model.receiveShadow = true;
 			scene.add(object);
 		} );
 	}
