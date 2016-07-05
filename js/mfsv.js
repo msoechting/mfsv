@@ -34,7 +34,6 @@ function MFSViewer(div, settings) {
 		if ((currentTime - this.lastRender) < this.minimumFrameTime) { return }
 		this.lastRender = currentTime;
 
-		// set NDC offsets if AA is enabled
 		if (this.effectOptions.antiAliasing) {
 			var xRand = Math.random() - 0.5;
 			var yRand = Math.random() - 0.5;
@@ -68,9 +67,9 @@ function MFSViewer(div, settings) {
 		this.mixSceneShaderMaterial.uniforms.newFrame.value = this.newFrameBuffer.texture;
 		this.mixSceneShaderMaterial.uniforms.lastFrame.value = this.bufferFlipFlop ? this.secondAccumBuffer.texture : this.firstAccumBuffer.texture;
 		this.mixSceneShaderMaterial.uniforms.weight.value = this.frameCount / (this.frameCount + 1);
-		this.renderer.render(this.mixScene, this.mixCamera, this.bufferFlipFlop ? this.firstAccumBuffer : this.secondAccumBuffer, false);
+		this.renderer.render(this.mixScene, this.mixCamera, this.bufferFlipFlop ? this.firstAccumBuffer : this.secondAccumBuffer);
 
-		// render our new accumulated image to our final scene
+		// render our new accumulated image to the screen (our final scene)
 		this.finalQuad.material.map = !this.bufferFlipFlop ? this.secondAccumBuffer.texture : this.firstAccumBuffer.texture;
 		this.renderer.render(this.finalScene, this.finalCamera);
 
@@ -98,6 +97,9 @@ function MFSViewer(div, settings) {
 		_this.requestRender();
 	}
 
+	/*
+	*	Loads a textured .json model (created by the python script from the root directory) into the specified scene.
+	*/
 	this.loadJSONModel = function(jsonPath, manager, texturePath, scene) {
 		var loader = new THREE.JSONLoader(manager);
 		loader.setTexturePath(texturePath);
@@ -131,18 +133,18 @@ function MFSViewer(div, settings) {
 	*/
 	this.loadPlainOBJModel = function(objPath, manager, scene) {
 		var loader = new THREE.OBJLoader(manager);
-		loader.load(settings.objPath, function (object) {
+		loader.load(objPath, function (object) {
 			object.traverse(function(child) {
 				if (child instanceof THREE.Mesh) {
 					child.material = new THREE.MeshLambertMaterial();
+					child.castShadow = true;
+					child.receiveShadow = true;
 					child.material.ndcOffset = new THREE.Vector2(0.0, 0.0);
 					child.material.cocPoint = new THREE.Vector2(0.0, 0.0);
 					_this.allMaterials.push(child.material);
 				}
 			} );
 			_this.model = object;
-			_this.model.castShadow = true;
-			_this.model.receiveShadow = true;
 			scene.add(object);
 		} );
 	}
@@ -220,14 +222,14 @@ function MFSViewer(div, settings) {
 		// set up light
 		this.light = new THREE.SpotLight(0xffffff, 2, 20);
 		this.light.castShadow = true;
-		this.light.shadow.mapSize.width = parseInt(getURLParameter("shadowMapSize")) || 1024;
-		this.light.shadow.mapSize.height = parseInt(getURLParameter("shadowMapSize")) || 1024;
+		this.light.shadow.mapSize.width = parseInt(getURLParameter("shadowMapSize")) || 2048;
+		this.light.shadow.mapSize.height = parseInt(getURLParameter("shadowMapSize")) || 2048;
 		this.light.shadow.camera.near = 0.001;
 		this.light.shadow.camera.far = 4000;
 		this.light.shadow.camera.fov = 75;
 		this.mainScene.add(this.light);
 
-		// load shaders
+		// accumulation shaders
 		var mixSceneVertexShader = " \n"+
 			"// switch on high precision floats \n"+
 			"#ifdef GL_ES \n"+
@@ -371,19 +373,24 @@ function MFSViewer(div, settings) {
 		f1.add(this.guiOptions, "targetFrameCount", 1, 128).onChange(this.updateTargetFrameCount);
 		f1.add(this.guiOptions, "renderAlways").onChange(this.updateRenderSettings);
 		f1.add(this.guiOptions, "minimumFrameTime", 0, 500).onChange(this.updateRenderSettings);
+		f1.open();
 		var f2 = this.gui.addFolder("Effects");
 		f2.add(this.effectOptions, "antiAliasing").onChange(this.requestRender);
 		f2.add(this.effectOptions, "softShadows").onChange(this.requestRender);
 		f2.add(this.effectOptions, "depthOfField").onChange(this.requestRender);
+		f2.open();
 		var f3 = this.gui.addFolder("Light");
 		f3.add(this.lightOptions, "followCamera").onChange(this.updateLightMode);
 		f3.add(this.lightOptions, "lightIntensity", 1, 5).onChange(this.updateLightSettings);
+		f3.open();
 		var f4 = this.gui.addFolder("Depth of Field");
 		f4.add(this.depthOfFieldOptions, "focalDistance", 0, 10).onChange(this.requestRender);
-		var f9 = this.gui.addFolder("Debugging");
-		f9.add(this.debugOptions, "aaNdcOffsetMultiplier", 1, 300).onChange(this.requestRender);
-		f9.add(this.debugOptions, "ssLightOffsetMultiplier", 0, 0.1).onChange(this.requestRender);
-		f9.add(this.debugOptions, "dofCoCPointMultiplier", 0, 0.02).onChange(this.requestRender);
+		f4.open();
+		var f5 = this.gui.addFolder("Debugging");
+		f5.add(this.debugOptions, "aaNdcOffsetMultiplier", 1, 300).onChange(this.requestRender);
+		f5.add(this.debugOptions, "ssLightOffsetMultiplier", 0, 0.1).onChange(this.requestRender);
+		f5.add(this.debugOptions, "dofCoCPointMultiplier", 0, 0.02).onChange(this.requestRender);
+		f5.open();
 	}
 
 	var _this = window.mfsv = this;
