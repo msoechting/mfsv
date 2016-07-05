@@ -48,6 +48,8 @@ function MFSViewer(div, settings) {
 			var yRand = this.debugOptions.ssLightOffsetMultiplier * (Math.random() - 0.5);
 			var zRand = this.debugOptions.ssLightOffsetMultiplier * (Math.random() - 0.5);
 			this.light.position.set(this.light.basePosition.x + xRand, this.light.basePosition.y + yRand, this.light.basePosition.z + zRand);
+		} else if (this.frameCount == 0) {
+			this.light.position.set(this.light.basePosition.x, this.light.basePosition.y, this.light.basePosition.z);
 		}
 		if (this.effectOptions.depthOfField) {
 			var xRand = Math.random() - 0.5;
