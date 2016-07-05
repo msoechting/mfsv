@@ -136,6 +136,7 @@ function MFSViewer(div, settings) {
 				if (child instanceof THREE.Mesh) {
 					child.material = new THREE.MeshLambertMaterial();
 					child.material.ndcOffset = new THREE.Vector2(0.0, 0.0);
+					child.material.cocPoint = new THREE.Vector2(0.0, 0.0);
 					_this.allMaterials.push(child.material);
 				}
 			} );
