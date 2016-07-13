@@ -5,4 +5,57 @@ status: success
 title: 'Sponza'
 ---
 
+<script type="text/javascript">
+  window.mfsvPresets = {
+    Hallway: {
+    	light: {
+    		eye: new THREE.Vector3(-0.8202000848545308,0.8952432030256566,-0.0958613559086227),
+    		up: new THREE.Vector3(0,1,0),
+    		target: new THREE.Vector3(-0.936167746789941,-0.0980097932951568,-0.09586136005542435)
+    	},
+    	camera: {
+    		eye: new THREE.Vector3(-1,0.3,0),
+    		up: new THREE.Vector3(0,1,0),
+    		target: new THREE.Vector3(0,0,0)
+    	},
+    	effects: {
+    		depthOfField: false,
+    		dofFocalDistance: 0.54
+    	}
+    },
+    Balcony: {
+      light: {
+        eye: new THREE.Vector3(0.285, 2.441, 0.0),
+        up: new THREE.Vector3(0.0, 1.0, 0.0),
+        target: new THREE.Vector3(0.0, 0.0, 0.0)
+      },
+      camera: {
+        eye: new THREE.Vector3(2.034, 1.137, 0.162),
+        up: new THREE.Vector3(0.0, 1.0, 0.0),
+        target: new THREE.Vector3(1.163,  0.65, 0.0926)
+      },
+      effects: {
+        depthOfField: true,
+        dofFocalDistance: 0.36
+      }
+    },
+    PlantPot: {
+    	light: {
+    		eye: new THREE.Vector3(-0.8202000848545308,0.8952432030256566,-0.0958613559086227),
+    		up: new THREE.Vector3(0,1,0),
+    		target: new THREE.Vector3(-0.936167738389202,-0.09800979523260211,-0.09586136637903779)
+    	},
+    	camera: {
+    		eye: new THREE.Vector3(-0.6001876547836124,0.10040058385654518,0.22989721201120225),
+    		up: new THREE.Vector3(-0.06933402857123108,0.986935575566739,0.1454337036688986),
+    		target: new THREE.Vector3(0.32245953934862326,-0.05394167055159002,-0.12351562071804248)
+    	},
+    	effects: {
+    		depthOfField: true,
+    		dofFocalDistance: 0.16
+    	}
+    }
+  };
+</script>
+
 <div class="mfsviewer" jsonPath="obj/crytek-sponza/sponza.json">
