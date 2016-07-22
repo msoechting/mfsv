@@ -9,21 +9,20 @@ window.onload = function() {
 }
 
 function MFSViewer(div, settings) {
-	this.animate = function() {
-		_this.controls.update();
-		if (_this.frameCount < _this.frameCountTarget || _this.renderAlways) {
-			_this.render();
-		}
-		requestAnimationFrame(_this.animate);
-	};
+	/*
+	* 	LOGGING
+	*/
 
 	this.log = function(logContent) {
 		console.log("[MFSViewer #"+_this.id+"]", logContent);
 	}
-
 	this.warn = function(logContent) {
 		console.warn("[MFSViewer #"+_this.id+"]", logContent);
 	}
+
+	/*
+	* 	RENDERING
+	*/
 
 	this.requestRender = function() {
 		if(_this.frameCount != 0) {
@@ -31,7 +30,13 @@ function MFSViewer(div, settings) {
 			_this.frameCount = 0;
 		}
 	}
-
+	this.animate = function() {
+		_this.controls.update();
+		if (_this.frameCount < _this.frameCountTarget || _this.guiOptions.mfs.renderAlways) {
+			_this.render();
+		}
+		requestAnimationFrame(_this.animate);
+	};
 	this.render = function() {
 		// artificial frame time limitation for multi-sampling presentation
 		currentTime = new Date().getTime();
@@ -81,7 +86,6 @@ function MFSViewer(div, settings) {
 		this.frameCount++;
     try { evalTick(); } catch(err) {}
 	}
-
 	this.resize = function() {
 		if (_this.fixedSize) {
 				return;
@@ -102,7 +106,11 @@ function MFSViewer(div, settings) {
 	}
 
 	/*
-	*	Loads a textured .json model (created by the python script below) into the specified scene.
+	* 	MODEL LOADING
+	*/
+
+	/*	this.loadJSONModel
+	* Loads a textured .json model (created by the python script below) into the specified scene.
 	* https://github.com/mrdoob/three.js/blob/master/utils/converters/obj/convert_obj_three.py
 	*/
 	this.loadJSONModel = function(jsonPath, manager, texturePath, scene) {
@@ -132,8 +140,7 @@ function MFSViewer(div, settings) {
 			scene.add(_this.model);
 		} );
 	}
-
-	/**
+	/*  this.loadPlainOBJModel
 	* Loads an untextured, raw .obj model into the specified scene.
 	*/
 	this.loadPlainOBJModel = function(objPath, manager, scene) {
@@ -154,6 +161,10 @@ function MFSViewer(div, settings) {
 		} );
 	}
 
+	/*
+	* 	PRESETS
+	*/
+
 	this.applyScenePreset = function(preset) {
 		this.controls.reset();
 		this.guiOptions.light.followCamera = false;
@@ -169,7 +180,6 @@ function MFSViewer(div, settings) {
 		this.mainCamera.lookAt(preset.camera.target);
 		this.requestRender();
 	}
-
 	this.encodeCurrentSceneAsPreset = function() {
 		var lightTarget = this.light.basePosition.clone().add(this.light.getWorldDirection());
 		var cameraTarget = this.mainCamera.position.clone().add(this.mainCamera.getWorldDirection());
@@ -192,25 +202,23 @@ function MFSViewer(div, settings) {
 		console.log(preset);
 	}
 
-	this.initialize = function(settings) {
-		function getURLParameter(name) {
-			return decodeURIComponent((new RegExp('[?|&]' + name + '=' + '([^&;]+?)(&|#|;|$)').exec(location.search) || [null, ''])[1].replace(/\+/g, '%20')) || null;
-		}
+	/*
+	*   INITIALIZATION
+	*/
 
-		// set width & height
+	this.initializeCommonVars = function() {
+		this.id = nextID++;
+		this.frameCount = 0;
+		this.frameCountTarget = 64;
+		this.bufferFlipFlop = true;
+
 		this.fixedSize = (settings.width || settings.height);
 		this.width = settings.width || div.offsetParent.offsetWidth;
 		this.height = settings.height || div.offsetParent.offsetHeight;
 		this.dpr = Math.ceil(window.devicePixelRatio);
 		window.addEventListener('resize', this.resize, false);
-
-		// misc vars
-		this.frameCount = 0;
-		this.frameCountTarget = 64;
-		this.bufferFlipFlop = true;
-		this.id = nextID++;
-
-		// prepare renderer
+	}
+	this.initializeRenderer = function() {
 		this.renderer = new THREE.WebGLRenderer( { alpha: true } );
 		this.renderer.shadowMap.enabled = true;
 		this.renderer.setSize(this.width, this.height);
@@ -219,60 +227,63 @@ function MFSViewer(div, settings) {
 		this.width = this.width * this.dpr;
 		this.height = this.height * this.dpr;
 		this.lastRender = new Date().getTime();
-		this.renderAlways = false;
-
-		// DETECT TEXTURE PRECISION
-		// .getExtension activates the extension
-		// 		WEBGL_color_buffer_float -> WebGL 1 (https://developer.mozilla.org/en-US/docs/Web/API/WEBGL_color_buffer_float)
-		// 		EXT_color_buffer_float & EXT_color_buffer_half_float -> WebGL 2 (https://developer.mozilla.org/en-US/docs/Web/API/EXT_color_buffer_float)
-		var texturePrecision;
-		if (this.renderer.context.getExtension('WEBGL_color_buffer_float') !== null || this.renderer.context.getExtension('EXT_color_buffer_float') !== null || getURLParameter('forcefloat')) {
-			texturePrecision = THREE.FloatType;
+	}
+	this.initializeTextures = function() {
+		// WEBGL_color_buffer_float 														-> WebGL 1 (https://developer.mozilla.org/en-US/docs/Web/API/WEBGL_color_buffer_float)
+		// EXT_color_buffer_float & EXT_color_buffer_half_float -> WebGL 2 (https://developer.mozilla.org/en-US/docs/Web/API/EXT_color_buffer_float)
+		if (this.renderer.context.getExtension('WEBGL_color_buffer_float') !== null || this.renderer.context.getExtension('EXT_color_buffer_float') !== null || this.getURLParameter('forcefloat')) {
+			this.texturePrecision = THREE.FloatType;
 			this.log('FLOAT texture precision will be used.');
 		} else if (this.renderer.context.getExtension('EXT_color_buffer_half_float') !== null) {
-			texturePrecision = THREE.HalfFloatType;
+			this.texturePrecision = THREE.HalfFloatType;
 			this.log('HALFFLOAT texture precision will be used.');
 		} else {
-			texturePrecision = THREE.UnsignedByteType;
+			this.texturePrecision = THREE.UnsignedByteType;
 			this.log('UNSIGNED BYTE texture precision will be used.');
 		}
 
-		// set up textures
 		var bufferSettings = {
 			minFilter: THREE.LinearFilter,
 			magFilter: THREE.LinearFilter,
 			format: THREE.RGBAFormat,
-			type: texturePrecision
+			type: this.texturePrecision
 		};
 		this.firstAccumBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
 		this.secondAccumBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
 		this.newFrameBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
-
-		// initialize cameras
+	}
+	this.initializeScenes = function() {
 		this.mainCamera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.1, 10000);
 		this.mainCamera.position.z = 1;
 		this.mixCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 		this.finalCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
 
-		// prepare scenes
 		this.mainScene = new THREE.Scene();
 		this.mainScene.add(this.mainCamera);
+
 		this.mixScene = new THREE.Scene();
 		this.mixScene.add(this.mixCamera);
+		this.mixQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), this.mixSceneShaderMaterial);
+		this.mixScene.add(this.mixQuad);
+
 		this.finalScene = new THREE.Scene();
 		this.finalScene.add(this.finalCamera);
+		this.finalQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), new THREE.MeshBasicMaterial( { transparent: true } ));
+		this.finalScene.add(this.finalQuad);
 
-		// set up light
 		this.light = new THREE.SpotLight(0xffffff, 2, 20);
 		this.light.castShadow = true;
-		this.light.shadow.mapSize.width = parseInt(getURLParameter("shadowMapSize")) || 2048;
-		this.light.shadow.mapSize.height = parseInt(getURLParameter("shadowMapSize")) || 2048;
+		this.light.shadow.mapSize.width = parseInt(this.getURLParameter("shadowMapSize")) || 2048;
+		this.light.shadow.mapSize.height = parseInt(this.getURLParameter("shadowMapSize")) || 2048;
 		this.light.shadow.camera.near = 0.001;
 		this.light.shadow.camera.far = 4000;
 		this.light.shadow.camera.fov = 75;
 		this.mainScene.add(this.light);
 
-		// accumulation shaders
+		// screen-aligned quads for accumulating & frame-buffer output
+
+	}
+	this.initializeShaders = function() {
 		var mixSceneVertexShader = " \n"+
 			"// switch on high precision floats \n"+
 			"#ifdef GL_ES \n"+
@@ -309,38 +320,9 @@ function MFSViewer(div, settings) {
 			vertexShader: mixSceneVertexShader,
 			fragmentShader: mixSceneFragmentShader
 		});
-
-		// load and add our object to the scene
-		var manager = new THREE.LoadingManager();
-		manager.onProgress = function (item, loaded, total) {
-			_this.log("Loaded item " + item + " (" + loaded + " of " + total + " objects)");
-		};
-		manager.onLoad = function () {
-			_this.log("Loading finished!");
-			_this.animate();
-		};
-
-		// remember all materials so we can set uniform values on them (NDC offset for AA, CoC offset for DoF)
-		this.allMaterials = new Array;
-		if (settings.objPath) {
-			this.loadPlainOBJModel(settings.objPath, manager, this.mainScene);
-		}
-		if (settings.jsonPath) {
-			this.loadJSONModel(settings.jsonPath, manager, settings.jsonPath.substring(0, settings.jsonPath.lastIndexOf("/"))+"/textures/", this.mainScene);
-		}
-
-		// load quad for finalScene
-		this.mixQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), this.mixSceneShaderMaterial);
-		this.mixScene.add(this.mixQuad);
-		this.finalQuad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), new THREE.MeshBasicMaterial( { transparent: true } ));
-		this.finalScene.add(this.finalQuad);
-
-		// attach the render-supplied DOM element
-		div.appendChild(this.renderer.domElement);
-		this.div = div;
-
-		// configure trackball controls
-		this.controls = new THREE.TrackballControls(this.mainCamera, this.renderer.domElement);
+	}
+	this.initializeTrackballControls = function() {
+		this.controls = new THREE.TrackballControls(this.mainCamera, this.div);
 		this.controls.addEventListener('change', this.requestRender);
 		this.controls.target.set(0, 0, 0);
 		this.controls.rotateSpeed = 5.0;
@@ -351,8 +333,8 @@ function MFSViewer(div, settings) {
 		this.controls.staticMoving = true;
 		this.controls.dynamicDampingFactor = 0;
 		this.controls.keys = [ 65, 83, 68 ];
-
-		// set up gui
+	}
+	this.initializeGUI = function() {
 		this.gui = new dat.GUI();
 		this.gui.width = 300;
 		this.guiOptions = {
@@ -360,14 +342,13 @@ function MFSViewer(div, settings) {
 			mfs: {
 				targetFrameCount: 64,
 				minimumFrameTime: 0.0,
-				renderAlways: this.renderAlways
+				renderAlways: false
 			},
 			effects: {
 				antiAliasing: true,
 				softShadows: true,
 				depthOfField: true
 			},
-			presetFunctions: {},
 			depthOfField: {
 				focalDistance: 0.5
 			},
@@ -379,7 +360,8 @@ function MFSViewer(div, settings) {
 				aaNdcOffsetMultiplier: 1.0,
 				ssLightOffsetMultiplier: 0.027,
 				dofCoCPointMultiplier: 0.005
-			}
+			},
+			presetFunctions: {}
 		};
 		this.updateTargetFrameCount = function() {
 			var newFrameCountTarget = _this.guiOptions.mfs.targetFrameCount;
@@ -459,13 +441,49 @@ function MFSViewer(div, settings) {
 		this.guiFolders.debug.add(this.guiOptions.debug, "aaNdcOffsetMultiplier", 1, 300).onChange(this.requestRender);
 		this.guiFolders.debug.add(this.guiOptions.debug, "ssLightOffsetMultiplier", 0, 0.1).onChange(this.requestRender);
 		this.guiFolders.debug.add(this.guiOptions.debug, "dofCoCPointMultiplier", 0, 0.02).onChange(this.requestRender);
-		if(texturePrecision != THREE.FloatType) {
+		if(this.texturePrecision != THREE.FloatType) {
 			this.guiFolders.debug.add({"forceFloatTexturePrecision": function() { window.location = window.location.href + "?forcefloat=1"; }}, "forceFloatTexturePrecision");
-			this.warn("The renderer is NOT using FLOAT texture precision. Click the 'forcefloat..' button in the Debugging section to force FLOAT texture precision.");
+			this.warn("The renderer is NOT using FLOAT texture precision. Click the 'forceFloat..' button in the Debugging section to force FLOAT texture precision.");
 		}
 		this.guiFolders.debug.open();
 	}
+	this.getURLParameter = function(name) {
+		return decodeURIComponent((new RegExp('[?|&]' + name + '=' + '([^&;]+?)(&|#|;|$)').exec(location.search) || [null, ''])[1].replace(/\+/g, '%20')) || null;
+	}
+
+	this.initialize = function(settings) {
+		this.initializeCommonVars();
+		this.initializeRenderer();
+		this.initializeTextures();
+		this.initializeShaders();
+		this.initializeScenes();
+		this.initializeTrackballControls();
+		this.initializeGUI();
+
+		// load and add our object to the scene
+		var manager = new THREE.LoadingManager();
+		manager.onProgress = function (item, loaded, total) {
+			_this.log("Loaded item " + item + " (" + loaded + " of " + total + " objects)");
+		};
+		manager.onLoad = function () {
+			_this.log("Loading finished!");
+			_this.animate();
+		};
+
+		// remember all materials so we can set uniform values on them (NDC offset for AA, CoC offset for DoF)
+		this.allMaterials = new Array;
+		if (settings.objPath) {
+			this.loadPlainOBJModel(settings.objPath, manager, this.mainScene);
+		}
+		if (settings.jsonPath) {
+			this.loadJSONModel(settings.jsonPath, manager, settings.jsonPath.substring(0, settings.jsonPath.lastIndexOf("/"))+"/textures/", this.mainScene);
+		}
+
+		// attach the render-supplied DOM element
+		this.div.appendChild(this.renderer.domElement);
+	}
 
 	var _this = window.mfsv = this;
+	this.div = div;
 	this.initialize(settings);
 }
