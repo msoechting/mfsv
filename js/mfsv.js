@@ -21,6 +21,10 @@ function MFSViewer(div, settings) {
 		console.log("[MFSViewer #"+_this.id+"]", logContent);
 	}
 
+	this.warn = function(logContent) {
+		console.warn("[MFSViewer #"+_this.id+"]", logContent);
+	}
+
 	this.requestRender = function() {
 		if(_this.frameCount != 0) {
 			_this.log("Requesting new frame set!");
@@ -34,29 +38,29 @@ function MFSViewer(div, settings) {
 		if ((currentTime - this.lastRender) < this.minimumFrameTime) { return }
 		this.lastRender = currentTime;
 
-		if (this.effectOptions.antiAliasing) {
+		if (this.guiOptions.effects.antiAliasing) {
 			var xRand = Math.random() - 0.5;
 			var yRand = Math.random() - 0.5;
 			for (i = 0; i < this.allMaterials.length; i++) {
-				this.allMaterials[i].ndcOffset.x = this.debugOptions.aaNdcOffsetMultiplier * 2 * xRand / this.width;
-				this.allMaterials[i].ndcOffset.y = this.debugOptions.aaNdcOffsetMultiplier * 2 * yRand / this.height;
+				this.allMaterials[i].ndcOffset.x = this.guiOptions.debug.aaNdcOffsetMultiplier * 2 * xRand / this.width;
+				this.allMaterials[i].ndcOffset.y = this.guiOptions.debug.aaNdcOffsetMultiplier * 2 * yRand / this.height;
 			}
 		}
-		if (this.effectOptions.softShadows) {
-			var xRand = this.debugOptions.ssLightOffsetMultiplier * (Math.random() - 0.5);
-			var yRand = this.debugOptions.ssLightOffsetMultiplier * (Math.random() - 0.5);
-			var zRand = this.debugOptions.ssLightOffsetMultiplier * (Math.random() - 0.5);
+		if (this.guiOptions.effects.softShadows) {
+			var xRand = this.guiOptions.debug.ssLightOffsetMultiplier * (Math.random() - 0.5);
+			var yRand = this.guiOptions.debug.ssLightOffsetMultiplier * (Math.random() - 0.5);
+			var zRand = this.guiOptions.debug.ssLightOffsetMultiplier * (Math.random() - 0.5);
 			this.light.position.set(this.light.basePosition.x + xRand, this.light.basePosition.y + yRand, this.light.basePosition.z + zRand);
 		} else if (this.frameCount == 0) {
 			this.light.position.copy(this.light.basePosition);
 		}
-		if (this.effectOptions.depthOfField) {
+		if (this.guiOptions.effects.depthOfField) {
 			var xRand = Math.random() - 0.5;
 			var yRand = Math.random() - 0.5;
 			for (i = 0; i < this.allMaterials.length; i++) {
-				this.allMaterials[i].focalDistance = this.depthOfFieldOptions.focalDistance;
-				this.allMaterials[i].cocPoint.x = this.debugOptions.dofCoCPointMultiplier * 2 * xRand;
-				this.allMaterials[i].cocPoint.y = this.debugOptions.dofCoCPointMultiplier * 2 * yRand;
+				this.allMaterials[i].focalDistance = this.guiOptions.depthOfField.focalDistance;
+				this.allMaterials[i].cocPoint.x = this.guiOptions.debug.dofCoCPointMultiplier * 2 * xRand;
+				this.allMaterials[i].cocPoint.y = this.guiOptions.debug.dofCoCPointMultiplier * 2 * yRand;
 			}
 		}
 
@@ -152,10 +156,10 @@ function MFSViewer(div, settings) {
 
 	this.applyScenePreset = function(preset) {
 		this.controls.reset();
-		this.lightOptions.followCamera = false;
+		this.guiOptions.light.followCamera = false;
 		this.updateLightMode();
-		this.depthOfFieldOptions.focalDistance = preset.effects.dofFocalDistance;
-		this.effectOptions.depthOfField = preset.effects.depthOfField;
+		this.guiOptions.depthOfField.focalDistance = preset.effects.dofFocalDistance;
+		this.guiOptions.effects.depthOfField = preset.effects.depthOfField;
 		this.light.position.copy(preset.light.eye);
 		this.light.basePosition.copy(this.light.position);
 		this.light.up.copy(preset.light.up);
@@ -181,8 +185,8 @@ function MFSViewer(div, settings) {
 			"		target: new THREE.Vector3("+cameraTarget.x+","+cameraTarget.y+","+cameraTarget.z+")\n"+
 		  "	},\n"+
 		  "	effects: {\n"+
-			"		depthOfField: "+this.effectOptions.depthOfField+",\n"+
-			"		dofFocalDistance: "+this.depthOfFieldOptions.focalDistance+"\n"+
+			"		depthOfField: "+this.guiOptions.effects.depthOfField+",\n"+
+			"		dofFocalDistance: "+this.guiOptions.depthOfField.focalDistance+"\n"+
 		  "	}\n"+
 			"}";
 		console.log(preset);
@@ -353,41 +357,44 @@ function MFSViewer(div, settings) {
 		this.gui.width = 300;
 		this.guiOptions = {
 			"ViewerID(ReadOnly)": this.id,
-			targetFrameCount: 64,
-			minimumFrameTime: 0.0,
-			renderAlways: this.renderAlways
-		};
-		this.effectOptions = {
-			antiAliasing: true,
-			softShadows: true,
-			depthOfField: true
-		};
-		this.depthOfFieldOptions = {
-			focalDistance: 0.5
-		};
-		this.lightOptions = {
-			lightIntensity: 2.0,
-			followCamera: true
-		};
-		this.debugOptions = {
-			aaNdcOffsetMultiplier: 1.0,
-			ssLightOffsetMultiplier: 0.027,
-			dofCoCPointMultiplier: 0.005
+			mfs: {
+				targetFrameCount: 64,
+				minimumFrameTime: 0.0,
+				renderAlways: this.renderAlways
+			},
+			effects: {
+				antiAliasing: true,
+				softShadows: true,
+				depthOfField: true
+			},
+			presetFunctions: {},
+			depthOfField: {
+				focalDistance: 0.5
+			},
+			light: {
+				lightIntensity: 2.0,
+				followCamera: true
+			},
+			debug: {
+				aaNdcOffsetMultiplier: 1.0,
+				ssLightOffsetMultiplier: 0.027,
+				dofCoCPointMultiplier: 0.005
+			}
 		};
 		this.updateTargetFrameCount = function() {
-			var newFrameCountTarget = _this.guiOptions.targetFrameCount;
+			var newFrameCountTarget = _this.guiOptions.mfs.targetFrameCount;
 			if (newFrameCountTarget != _this.frameCountTarget && newFrameCountTarget > 0) {
 				_this.frameCountTarget = newFrameCountTarget;
 				_this.requestRender();
 			}
 		};
 		this.updateRenderSettings = function () {
-			_this.minimumFrameTime = _this.guiOptions.minimumFrameTime;
-			_this.renderAlways = _this.guiOptions.renderAlways;
+			_this.minimumFrameTime = _this.guiOptions.mfs.minimumFrameTime;
+			_this.renderAlways = _this.guiOptions.mfs.renderAlways;
 			_this.requestRender();
 		}
 		this.updateLightMode = function () {
-			if (_this.lightOptions.followCamera) {
+			if (_this.guiOptions.light.followCamera) {
 				_this.light.basePosition = _this.mainCamera.position;
 				_this.light.position = _this.light.basePosition.clone();
 				_this.light.rotation = _this.mainCamera.rotation;
@@ -399,7 +406,7 @@ function MFSViewer(div, settings) {
 			_this.requestRender();
 		}
 		this.updateLightSettings = function () {
-			_this.light.intensity = _this.lightOptions.lightIntensity;
+			_this.light.intensity = _this.guiOptions.light.lightIntensity;
 			_this.requestRender();
 		}
 		this.updateTargetFrameCount();
@@ -408,49 +415,55 @@ function MFSViewer(div, settings) {
 		this.updateLightMode();
 
 		this.gui.add(this.guiOptions, "ViewerID(ReadOnly)");
-		var mfsFolder = this.gui.addFolder("Multi-frame Sampling");
-		mfsFolder.add(this.guiOptions, "targetFrameCount", 1, 128).onChange(this.updateTargetFrameCount);
-		mfsFolder.add(this.guiOptions, "renderAlways").onChange(this.updateRenderSettings);
-		mfsFolder.add(this.guiOptions, "minimumFrameTime", 0, 500).onChange(this.updateRenderSettings);
-		mfsFolder.open();
+		this.guiFolders = {};
 
-		var effectsFolder = this.gui.addFolder("Effects");
-		effectsFolder.add(this.effectOptions, "antiAliasing").onChange(this.requestRender);
-		effectsFolder.add(this.effectOptions, "softShadows").onChange(this.requestRender);
-		effectsFolder.add(this.effectOptions, "depthOfField").listen().onChange(this.requestRender);
-		effectsFolder.open();
+		this.guiFolders.mfs = this.gui.addFolder("Multi-frame Sampling");
+		this.guiFolders.mfs.add(this.guiOptions.mfs, "targetFrameCount", 1, 128).onChange(this.updateTargetFrameCount);
+		this.guiFolders.mfs.add(this.guiOptions.mfs, "renderAlways").listen().onChange(this.updateRenderSettings);
+		this.guiFolders.mfs.add(this.guiOptions.mfs, "minimumFrameTime", 0, 500).onChange(this.updateRenderSettings);
+		this.guiFolders.mfs.open();
 
-		var presetFolder = this.gui.addFolder("Scene Presets");
-		var presetNames = Object.keys(window.mfsvPresets);
-		this.presetGUIFunctions = {};
-		for (var i = 0; i < presetNames.length; i++) {
-			(function(presetIndex) {
-				_this.presetGUIFunctions[presetNames[presetIndex]] = function() {
-					_this.applyScenePreset(window.mfsvPresets[presetNames[presetIndex]]);
-				};
-			})(i);
-			presetFolder.add(this.presetGUIFunctions, presetNames[i]);
+		this.guiFolders.effects = this.gui.addFolder("Effects");
+		this.guiFolders.effects.add(this.guiOptions.effects, "antiAliasing").onChange(this.requestRender);
+		this.guiFolders.effects.add(this.guiOptions.effects, "softShadows").onChange(this.requestRender);
+		this.guiFolders.effects.add(this.guiOptions.effects, "depthOfField").listen().onChange(this.requestRender);
+		this.guiFolders.effects.open();
+
+		this.guiFolders.presets = this.gui.addFolder("Scene Presets");
+		if (window.mfsvPresets) {
+			var presetNames = Object.keys(window.mfsvPresets);
+			for (var i = 0; i < presetNames.length; i++) {
+				(function(presetIndex) {
+					_this.guiOptions.presetFunctions[presetNames[presetIndex]] = function() {
+						_this.applyScenePreset(window.mfsvPresets[presetNames[presetIndex]]);
+					};
+				})(i);
+				this.guiFolders.presets.add(this.guiOptions.presetFunctions, presetNames[i]);
+			}
+			this.applyScenePreset(window.mfsvPresets[presetNames[0]]);
+		} else {
+			this.guiFolders.presets.add({"no presets found": function(){} }, "no presets found");
 		}
-		this.applyScenePreset(window.mfsvPresets[presetNames[0]]);
-		presetFolder.open();
+		this.guiFolders.presets.open();
 
-		var lightFolder = this.gui.addFolder("Light");
-		lightFolder.add(this.lightOptions, "followCamera").listen().onChange(this.updateLightMode);
-		lightFolder.add(this.lightOptions, "lightIntensity", 1, 5).onChange(this.updateLightSettings);
-		lightFolder.open();
+		this.guiFolders.light = this.gui.addFolder("Light");
+		this.guiFolders.light.add(this.guiOptions.light, "followCamera").listen().onChange(this.updateLightMode);
+		this.guiFolders.light.add(this.guiOptions.light, "lightIntensity", 1, 5).onChange(this.updateLightSettings);
+		this.guiFolders.light.open();
 
-		var dofFolder = this.gui.addFolder("Depth of Field");
-		dofFolder.add(this.depthOfFieldOptions, "focalDistance", 0, 10).listen().onChange(this.requestRender);
-		dofFolder.open();
+		this.guiFolders.dof = this.gui.addFolder("Depth of Field");
+		this.guiFolders.dof.add(this.guiOptions.depthOfField, "focalDistance", 0, 10).listen().onChange(this.requestRender);
+		this.guiFolders.dof.open();
 
-		var debuggingFolder = this.gui.addFolder("Debugging");
-		debuggingFolder.add(this.debugOptions, "aaNdcOffsetMultiplier", 1, 300).onChange(this.requestRender);
-		debuggingFolder.add(this.debugOptions, "ssLightOffsetMultiplier", 0, 0.1).onChange(this.requestRender);
-		debuggingFolder.add(this.debugOptions, "dofCoCPointMultiplier", 0, 0.02).onChange(this.requestRender);
+		this.guiFolders.debug = this.gui.addFolder("Debugging");
+		this.guiFolders.debug.add(this.guiOptions.debug, "aaNdcOffsetMultiplier", 1, 300).onChange(this.requestRender);
+		this.guiFolders.debug.add(this.guiOptions.debug, "ssLightOffsetMultiplier", 0, 0.1).onChange(this.requestRender);
+		this.guiFolders.debug.add(this.guiOptions.debug, "dofCoCPointMultiplier", 0, 0.02).onChange(this.requestRender);
 		if(texturePrecision != THREE.FloatType) {
-			debuggingFolder.add({"forceFloatTexturePrecision": function() { window.location = window.location.href + "?forcefloat=1"; }}, "forceFloatTexturePrecision");
+			this.guiFolders.debug.add({"forceFloatTexturePrecision": function() { window.location = window.location.href + "?forcefloat=1"; }}, "forceFloatTexturePrecision");
+			this.warn("The renderer is NOT using FLOAT texture precision. Click the 'forcefloat..' button in the Debugging section to force FLOAT texture precision.");
 		}
-		debuggingFolder.open();
+		this.guiFolders.debug.open();
 	}
 
 	var _this = window.mfsv = this;
