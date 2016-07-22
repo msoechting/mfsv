@@ -53,10 +53,11 @@ function MFSViewer(div, settings) {
 			}
 		}
 		if (this.guiOptions.effects.softShadows) {
-			var xRand = this.guiOptions.effects.useKernels ? this.ssSamples[sampleIndex].x : Math.random() - 0.5;
-			var yRand = this.guiOptions.effects.useKernels ? this.ssSamples[sampleIndex].y : Math.random() - 0.5;
-			// TODO: implement light shifting
-			//this.light.position.set(this.light.basePosition);
+            // TODO: implement kernels
+            var xRand = this.guiOptions.debug.ssLightOffsetMultiplier * (Math.random() - 0.5);
+			var yRand = this.guiOptions.debug.ssLightOffsetMultiplier * (Math.random() - 0.5);
+			var zRand = this.guiOptions.debug.ssLightOffsetMultiplier * (Math.random() - 0.5);
+			this.light.position.set(this.light.basePosition.x + xRand, this.light.basePosition.y + yRand, this.light.basePosition.z + zRand);
 		} else if (this.frameCount == 0) {
 			this.light.position.copy(this.light.basePosition);
 		}
