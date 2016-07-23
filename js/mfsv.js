@@ -24,9 +24,8 @@ function MFSViewer(div, settings) {
 	* 	RENDERING
 	*/
 
-	this.calculatePlaneFor
 	this.requestRender = function() {
-		if (_this.framecount != 0) {
+		if (_this.frameCount != 0) {
 			_this.log("Requesting new frame set!");
 			_this.frameCount = 0;
 		}
@@ -241,6 +240,7 @@ function MFSViewer(div, settings) {
 		this.width = this.width * this.dpr;
 		this.height = this.height * this.dpr;
 		this.lastRender = new Date().getTime();
+		this.div.appendChild(this.renderer.domElement);
 	}
 	this.initializeTextures = function() {
 		// WEBGL_color_buffer_float 														-> WebGL 1 (https://developer.mozilla.org/en-US/docs/Web/API/WEBGL_color_buffer_float)
@@ -339,12 +339,12 @@ function MFSViewer(div, settings) {
 		this.ssSamples = this.dofSamples;
 	}
 	this.initializeTrackballControls = function() {
-		this.controls = new THREE.TrackballControls(this.mainCamera, this.div);
+		this.controls = new THREE.TrackballControls(this.mainCamera, this.renderer.domElement);
 		this.controls.addEventListener('change', this.requestRender);
 		this.controls.target.set(0, 0, 0);
-		this.controls.rotateSpeed = 5.0;
-		this.controls.zoomSpeed = 2;
-		this.controls.panSpeed = 10;
+		this.controls.rotateSpeed = 10;
+		this.controls.zoomSpeed = 3;
+		this.controls.panSpeed = 4;
 		this.controls.noZoom = false;
 		this.controls.noPan = false;
 		this.controls.staticMoving = true;
@@ -450,7 +450,7 @@ function MFSViewer(div, settings) {
 		this.guiFolders.light.open();
 
 		this.guiFolders.dof = this.gui.addFolder("Depth of Field");
-		this.guiFolders.dof.add(this.guiOptions.depthOfField, "focalDistance", 0, 10).listen().onChange(this.requestRender);
+		this.guiFolders.dof.add(this.guiOptions.depthOfField, "focalDistance", 0, 7).listen().onChange(this.requestRender);
 		this.guiFolders.dof.open();
 
 		this.guiFolders.debug = this.gui.addFolder("Debugging");
@@ -495,9 +495,6 @@ function MFSViewer(div, settings) {
 		if (settings.jsonPath) {
 			this.loadJSONModel(settings.jsonPath, manager, settings.jsonPath.substring(0, settings.jsonPath.lastIndexOf("/"))+"/textures/", this.mainScene);
 		}
-
-		// attach the render-supplied DOM element
-		this.div.appendChild(this.renderer.domElement);
 	}
 
 	var _this = window.mfsv = this;
