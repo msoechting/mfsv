@@ -24,15 +24,16 @@ function MFSViewer(div, settings) {
 	* 	RENDERING
 	*/
 
+	this.calculatePlaneFor
 	this.requestRender = function() {
-		if(_this.frameCount != 0) {
+		if (_this.framecount != 0) {
 			_this.log("Requesting new frame set!");
 			_this.frameCount = 0;
 		}
 	}
 	this.animate = function() {
 		_this.controls.update();
-		if (_this.frameCount < _this.frameCountTarget || _this.guiOptions.mfs.renderAlways) {
+		if (_this.frameCount < _this.guiOptions.mfs.targetFrameCount || _this.guiOptions.mfs.renderAlways) {
 			_this.render();
 		}
 		requestAnimationFrame(_this.animate);
@@ -43,7 +44,7 @@ function MFSViewer(div, settings) {
 		if ((currentTime - this.lastRender) < this.minimumFrameTime) { return }
 		this.lastRender = currentTime;
 
-		var sampleIndex = Math.floor((this.frameCount / this.frameCountTarget) * this.kernelSize);
+		var sampleIndex = Math.floor((this.frameCount / this.guiOptions.mfs.targetFrameCount) * this.kernelSize);
 		if (this.guiOptions.effects.antiAliasing) {
 			var xRand = this.guiOptions.effects.useKernels ? this.aaSamples[sampleIndex].x : Math.random() - 0.5;
 			var yRand = this.guiOptions.effects.useKernels ? this.aaSamples[sampleIndex].y : Math.random() - 0.5;
@@ -53,11 +54,23 @@ function MFSViewer(div, settings) {
 			}
 		}
 		if (this.guiOptions.effects.softShadows) {
-            // TODO: implement kernels
-            var xRand = this.guiOptions.debug.ssLightOffsetMultiplier * (Math.random() - 0.5);
-			var yRand = this.guiOptions.debug.ssLightOffsetMultiplier * (Math.random() - 0.5);
-			var zRand = this.guiOptions.debug.ssLightOffsetMultiplier * (Math.random() - 0.5);
-			this.light.position.set(this.light.basePosition.x + xRand, this.light.basePosition.y + yRand, this.light.basePosition.z + zRand);
+			// In the first frame, calculate two arbitrary span vectors describing the plane orthogonal to the light direction vector
+			if (this.frameCount == 0) {
+				var lightDir = this.light.getWorldDirection().normalize();
+				var planeBasis1 = new THREE.Vector3(0, -lightDir.z, lightDir.y).normalize();
+				if (planeBasis1.length() < 0.0001) {
+					planeBasis1 = new THREE.Vector3(-lightDir.z, 0, lightDir.x).normalize();
+					if (planeBasis1.length() < 0.0001) {
+						console.warn("this shouldn't happen");
+					}
+				}
+				this.light.planeBasis1 = planeBasis1.clone();
+				this.light.planeBasis2 = (lightDir.cross(planeBasis1)).normalize();
+			}
+			var xRand = this.guiOptions.debug.ssLightOffsetMultiplier * (this.guiOptions.effects.useKernels ? this.ssSamples[sampleIndex].x : Math.random() - 0.5);
+			var yRand = this.guiOptions.debug.ssLightOffsetMultiplier * (this.guiOptions.effects.useKernels ? this.ssSamples[sampleIndex].y : Math.random() - 0.5);
+			var offset = this.light.planeBasis1.clone().multiplyScalar(xRand).add(this.light.planeBasis2.clone().multiplyScalar(yRand));
+			this.light.position.set(this.light.basePosition.x + offset.x, this.light.basePosition.y + offset.y, this.light.basePosition.z + offset.z);
 		} else if (this.frameCount == 0) {
 			this.light.position.copy(this.light.basePosition);
 		}
@@ -86,11 +99,11 @@ function MFSViewer(div, settings) {
 
 		this.bufferFlipFlop = !this.bufferFlipFlop;
 		this.frameCount++;
-    try { evalTick(); } catch(err) {}
+	    try { evalTick(); } catch(err) {}
 	}
 	this.resize = function() {
 		if (_this.fixedSize) {
-				return;
+			return;
 		}
 		var w = _this.div.offsetParent.offsetWidth, h = _this.div.offsetParent.offsetHeight;
 		_this.renderer.setSize(w, h);
@@ -211,7 +224,6 @@ function MFSViewer(div, settings) {
 	this.initializeCommonVars = function() {
 		this.id = nextID++;
 		this.frameCount = 0;
-		this.frameCountTarget = 64;
 		this.bufferFlipFlop = true;
 
 		this.fixedSize = (settings.width || settings.height);
@@ -281,9 +293,6 @@ function MFSViewer(div, settings) {
 		this.light.shadow.camera.far = 4000;
 		this.light.shadow.camera.fov = 75;
 		this.mainScene.add(this.light);
-
-		// screen-aligned quads for accumulating & frame-buffer output
-
 	}
 	this.initializeShaders = function() {
 		var mixSceneVertexShader = " \n"+
@@ -373,11 +382,8 @@ function MFSViewer(div, settings) {
 			presetFunctions: {}
 		};
 		this.updateTargetFrameCount = function() {
-			var newFrameCountTarget = _this.guiOptions.mfs.targetFrameCount;
-			if (newFrameCountTarget != _this.frameCountTarget && newFrameCountTarget > 0) {
-				_this.frameCountTarget = newFrameCountTarget;
-				_this.requestRender();
-			}
+			_this.guiOptions.mfs.targetFrameCount = Math.floor(_this.guiOptions.mfs.targetFrameCount);
+			_this.requestRender();
 		};
 		this.updateRenderSettings = function () {
 			_this.minimumFrameTime = _this.guiOptions.mfs.minimumFrameTime;
@@ -434,7 +440,7 @@ function MFSViewer(div, settings) {
 			}
 			this.applyScenePreset(window.mfsvPresets[presetNames[0]]);
 		} else {
-			this.guiFolders.presets.add({"no presets found": function(){} }, "no presets found");
+			this.guiFolders.presets.add({ "no presets found": function(){} }, "no presets found");
 		}
 		this.guiFolders.presets.open();
 
@@ -451,7 +457,7 @@ function MFSViewer(div, settings) {
 		this.guiFolders.debug.add(this.guiOptions.debug, "aaNdcOffsetMultiplier", 1, 300).onChange(this.requestRender);
 		this.guiFolders.debug.add(this.guiOptions.debug, "ssLightOffsetMultiplier", 0, 0.1).onChange(this.requestRender);
 		this.guiFolders.debug.add(this.guiOptions.debug, "dofCoCPointMultiplier", 0, 0.02).onChange(this.requestRender);
-		if(this.texturePrecision != THREE.FloatType) {
+		if (this.texturePrecision != THREE.FloatType) {
 			this.guiFolders.debug.add({"forceFloatTexturePrecision": function() { window.location = window.location.href + "?forcefloat=1"; }}, "forceFloatTexturePrecision");
 			this.warn("The renderer is NOT using FLOAT texture precision. Click the 'forceFloat..' button in the Debugging section to force FLOAT texture precision.");
 		}
@@ -481,7 +487,7 @@ function MFSViewer(div, settings) {
 			_this.animate();
 		};
 
-		// remember all materials so we can set uniform values on them (NDC offset for AA, CoC offset for DoF)
+		// remember all materials so we can set uniform values on them later (NDC offset for AA, CoC offset for DoF)
 		this.allMaterials = new Array;
 		if (settings.objPath) {
 			this.loadPlainOBJModel(settings.objPath, manager, this.mainScene);
