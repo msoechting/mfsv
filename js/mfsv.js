@@ -183,8 +183,10 @@ function MFSViewer(div, settings) {
 		this.controls.reset();
 		this.guiOptions.light.followCamera = false;
 		this.updateLightMode();
-		this.guiOptions.depthOfField.focalDistance = preset.effects.dofFocalDistance;
+		this.guiOptions.depthOfField.focalDistance = preset.effects.dofFocalDistance || this.guiOptions.depthOfField.focalDistance;
 		this.guiOptions.effects.depthOfField = preset.effects.depthOfField;
+		this.guiOptions.light.lightIntensity = preset.light.intensity || this.guiOptions.light.lightIntensity;
+		this.light.intensity = this.guiOptions.light.lightIntensity;
 		this.light.position.copy(preset.light.eye);
 		this.light.basePosition.copy(this.light.position);
 		this.light.up.copy(preset.light.up);
@@ -201,7 +203,8 @@ function MFSViewer(div, settings) {
 		  "	light: {\n"+
 			"		eye: new THREE.Vector3("+this.light.basePosition.x+","+this.light.basePosition.y+","+this.light.basePosition.z+"),\n"+
 			"		up: new THREE.Vector3("+this.light.up.x+","+this.light.up.y+","+this.light.up.z+"),\n"+
-			"		target: new THREE.Vector3("+lightTarget.x+","+lightTarget.y+","+lightTarget.z+")\n"+
+			"		target: new THREE.Vector3("+lightTarget.x+","+lightTarget.y+","+lightTarget.z+"),\n"+
+			"		intensity: "+this.guiOptions.light.lightIntensity+"\n"+
 		  "	},\n"+
 		  "	camera: {\n"+
 			"		eye: new THREE.Vector3("+this.mainCamera.position.x+","+this.mainCamera.position.y+","+this.mainCamera.position.z+"),\n"+
@@ -446,7 +449,7 @@ function MFSViewer(div, settings) {
 
 		this.guiFolders.light = this.gui.addFolder("Light");
 		this.guiFolders.light.add(this.guiOptions.light, "followCamera").listen().onChange(this.updateLightMode);
-		this.guiFolders.light.add(this.guiOptions.light, "lightIntensity", 1, 5).onChange(this.updateLightSettings);
+		this.guiFolders.light.add(this.guiOptions.light, "lightIntensity", 1, 5).listen().onChange(this.updateLightSettings);
 		this.guiFolders.light.open();
 
 		this.guiFolders.dof = this.gui.addFolder("Depth of Field");
