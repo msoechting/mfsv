@@ -43,7 +43,7 @@ function MFSViewer(div, settings) {
 		if ((currentTime - this.lastRender) < this.minimumFrameTime) { return }
 		this.lastRender = currentTime;
 
-		var sampleIndex = Math.floor((this.frameCount / this.guiOptions.mfs.targetFrameCount) * this.kernelSize);
+		var sampleIndex = Math.floor((this.frameCount / this.guiOptions.mfs.targetFrameCount) * this.kernelSize) % this.kernelSize;
 		if (this.guiOptions.effects.antiAliasing) {
 			var xRand = this.guiOptions.effects.useKernels ? this.aaSamples[sampleIndex].x : Math.random() - 0.5;
 			var yRand = this.guiOptions.effects.useKernels ? this.aaSamples[sampleIndex].y : Math.random() - 0.5;

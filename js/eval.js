@@ -96,7 +96,7 @@ function benchmark()
 	evalremap_height = $('#eval-remap-height')[0];
 	evalhighlight = $('#evalhighlight')[0];
 
-	window.mfsv.renderAlways = true;
+	window.mfsv.guiOptions.mfs.renderAlways = true;
 	window.mfsv.requestRender();
 
 	benchmark_stage = 0;
@@ -140,7 +140,7 @@ function benchmark_tick()
 		{
 			$('#benchmark').removeClass('disabled');
 			benchmark_stage = -1;
-			window.mfsv.renderAlways = window.mfsv.guiOptions.renderAlways;
+			window.mfsv.guiOptions.mfs.renderAlways = false;
 		}
 		break;
 	}
