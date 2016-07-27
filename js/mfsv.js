@@ -467,12 +467,20 @@ function MFSViewer(div, settings) {
 		this.guiFolders.debug.open();
 	}
 	this.waitForTexturesThenAnimate = function() {
+		var matCount = this.allMaterials.length;
 		function checkTextureLoadStatus() {
-			for (i = 0; i < _this.allMaterials.length; i++) {
+			var m = _this.allMaterials.length;
+			for (i = 0; i < matCount; i++) {
     			if (_this.allMaterials[i].map != null && _this.allMaterials[i].map.image == undefined) {
-					return;
+					m -= 1;
 				}
     		}
+			if (m < matCount) {
+				_this.titleElement.innerHTML = _this.title + " ["+m+" / "+matCount+" textures loaded]";
+				return;
+			}
+			_this.titleElement.innerHTML = _this.title + " [loading finished]";
+			setTimeout(function() { _this.titleElement.innerHTML = _this.title; }, 3000);
 			clearInterval(interval);
 			_this.log("Loaded all textures, now rendering.");
 			_this.animate();
@@ -497,6 +505,7 @@ function MFSViewer(div, settings) {
 		var manager = new THREE.LoadingManager();
 		manager.onProgress = function (item, loaded, total) {
 			_this.log("Loaded item " + item + " (" + loaded + " of " + total + " objects)");
+			_this.titleElement.innerHTML = _this.title + " ["+loaded+" / "+total+" models loaded]";
 		};
 		manager.onLoad = function () {
 			_this.log("Loaded all models.");
@@ -505,6 +514,7 @@ function MFSViewer(div, settings) {
 
 		// remember all materials so we can set uniform values on them later (NDC offset for AA, CoC offset for DoF)
 		this.allMaterials = new Array;
+		this.titleElement.innerHTML = _this.title + " [loading models]";
 		if (settings.objPath) {
 			this.loadPlainOBJModel(settings.objPath, manager, this.mainScene);
 		}
@@ -514,6 +524,8 @@ function MFSViewer(div, settings) {
 	}
 
 	var _this = window.mfsv = this;
+	this.titleElement = document.getElementById("title");
+	this.title = this.titleElement.innerHTML;
 	this.div = div;
 	this.initialize(settings);
 }
