@@ -245,7 +245,7 @@ function MFSViewer(div, settings) {
 		this.lastRender = new Date().getTime();
 		this.div.appendChild(this.renderer.domElement);
 	}
-	this.initializeTextures = function() {
+	this.initializeBuffers = function() {
 		// WEBGL_color_buffer_float 														-> WebGL 1 (https://developer.mozilla.org/en-US/docs/Web/API/WEBGL_color_buffer_float)
 		// EXT_color_buffer_float & EXT_color_buffer_half_float -> WebGL 2 (https://developer.mozilla.org/en-US/docs/Web/API/EXT_color_buffer_float)
 		if (this.renderer.context.getExtension('WEBGL_color_buffer_float') !== null || this.renderer.context.getExtension('EXT_color_buffer_float') !== null || this.getURLParameter('forcefloat')) {
@@ -466,6 +466,19 @@ function MFSViewer(div, settings) {
 		}
 		this.guiFolders.debug.open();
 	}
+	this.waitForTexturesThenAnimate = function() {
+		function checkTextureLoadStatus() {
+			for (i = 0; i < _this.allMaterials.length; i++) {
+    			if (_this.allMaterials[i].map != null && _this.allMaterials[i].map.image == undefined) {
+					return;
+				}
+    		}
+			clearInterval(interval);
+			_this.log("Loaded all textures, now rendering.");
+			_this.animate();
+		}
+		var interval = setInterval(checkTextureLoadStatus, 300);
+	}
 	this.getURLParameter = function(name) {
 		return decodeURIComponent((new RegExp('[?|&]' + name + '=' + '([^&;]+?)(&|#|;|$)').exec(location.search) || [null, ''])[1].replace(/\+/g, '%20')) || null;
 	}
@@ -473,7 +486,7 @@ function MFSViewer(div, settings) {
 	this.initialize = function(settings) {
 		this.initializeCommonVars();
 		this.initializeRenderer();
-		this.initializeTextures();
+		this.initializeBuffers();
 		this.initializeShaders();
 		this.initializeKernels();
 		this.initializeScenes();
@@ -486,8 +499,8 @@ function MFSViewer(div, settings) {
 			_this.log("Loaded item " + item + " (" + loaded + " of " + total + " objects)");
 		};
 		manager.onLoad = function () {
-			_this.log("Loading finished!");
-			_this.animate();
+			_this.log("Loaded all models.");
+			_this.waitForTexturesThenAnimate();
 		};
 
 		// remember all materials so we can set uniform values on them later (NDC offset for AA, CoC offset for DoF)
