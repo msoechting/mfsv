@@ -118,7 +118,7 @@ function MFSViewer(div, settings) {
 			this.renderer.render(this.mainScene, this.mainCamera, this.ssaoColorBuffer);
 
 			// tell the ssao shader which kernel to use, dependent of current frame count
-			this.ssaoSceneShaderMaterial.uniforms.frameCountFraction.value = (this.frameCount + 0.5) / this.guiOptions.mfs.targetFrameCount;
+			this.ssaoSceneShaderMaterial.uniforms.frameCountFraction.value = ((this.frameCount + 0.5) / this.kernelSize.default) % this.kernelSize.default;
 
 			// ssao pass
 			this.renderer.render(this.ssaoScene, this.ssaoCamera, this.newFrameBuffer);
