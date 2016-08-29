@@ -218,6 +218,9 @@ function MFSViewer(div, settings) {
 				}
 			} );
 			_this.model = object;
+			var box = new THREE.Box3().setFromObject(object), bsize = box.size();
+			var s = 6 / Math.max(bsize.x, bsize.y, bsize.z);
+			_this.model.scale.set(s, s, s);
 			scene.add(object);
 		} );
 	}
@@ -746,7 +749,7 @@ function MFSViewer(div, settings) {
 
 	var _this = window.mfsv = this;
 	this.titleElement = document.getElementById("title");
-	this.title = this.titleElement.innerHTML;
+	this.title = document.title;
 	this.div = div;
 	this.initialize(settings);
 }
