@@ -450,8 +450,9 @@ function MFSViewer(div, settings) {
 			"{ \n"+
 			"    float d = linearDepth(v_uv); \n"+
 			" \n"+
-			"    if (d > farZ) {\n"+
-			"        gl_FragColor = vec4(texture2D(colorSampler, v_uv).rgb, 1.0); \n"+
+			"    if (texture2D(colorSampler, v_uv).a < 0.001) {\n"+
+			"        gl_FragColor = vec4(0.0); \n"+
+			"        return; \n"+
 			"    } \n"+
 			" \n"+
 			"    vec4 eye = (actualProjectionMatrixInverted * vec4(2.0*(v_uv - vec2(0.5)), 1.0, 1.0)); \n"+
@@ -491,7 +492,6 @@ function MFSViewer(div, settings) {
 			"    } \n"+
 			" \n"+
 			"    float ssao = 1.0 - (ao * kernelSizeInverted); \n"+
-			" \n"+
 			"    gl_FragColor = vec4(vec3(ssao) * mix(texture2D(colorSampler, v_uv).rgb, vec3(1.0), float(aoOnly)), 1.0); \n"+
 			"}";
 
@@ -669,7 +669,7 @@ function MFSViewer(div, settings) {
 
 		this.guiFolders.ssao = this.gui.addFolder("SSAO");
 		this.guiFolders.ssao.add(this.guiOptions.ssao, "aoOnly").onChange(this.requestRender);
-		this.guiFolders.ssao.add(this.guiOptions.ssao, "radius", 0.005, 0.5).onChange(this.requestRender);
+		this.guiFolders.ssao.add(this.guiOptions.ssao, "radius", 0.005, 2).onChange(this.requestRender);
 		this.guiFolders.ssao.open();
 
 		this.guiFolders.debug = this.gui.addFolder("Debugging");
