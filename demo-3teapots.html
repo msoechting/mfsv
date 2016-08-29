@@ -1,0 +1,64 @@
+---
+layout: columns
+categories: [demos]
+status: success
+title: '3 Teapots'
+---
+
+<script type="text/javascript">
+window.mfsvPresets = {
+    Overview: {
+		light: {
+			eye: new THREE.Vector3(0.21764171634978183,3.3493227632529825,5.979504231912747),
+			up: new THREE.Vector3(0,1,0),
+			target: new THREE.Vector3(0.21764171634978183,3.3493227632529825,6.979504231912747),
+			intensity: 1.2141652463346508
+		},
+		camera: {
+			eye: new THREE.Vector3(0.21764171634978183,3.3493227632529825,5.979504231912747),
+			up: new THREE.Vector3(0.006767563089947229,0.9027766436614556,-0.4300564285639295),
+			target: new THREE.Vector3(0.23594598432165312,2.919216714834542,5.0769114427364)
+		},
+		effects: {
+			depthOfField: false,
+			dofFocalDistance: 0.5
+		}
+	},
+    Side: {
+		light: {
+			eye: new THREE.Vector3(-1.5606242057627284,4.9370435110586754,4.565196838583936),
+			up: new THREE.Vector3(0,1,0),
+			target: new THREE.Vector3(-1.5606242057627284,4.9370435110586754,5.565196838583936),
+			intensity: 1.2141652463346508
+		},
+		camera: {
+			eye: new THREE.Vector3(-3.9557129265474487,3.2086530056189577,1.5591049211389876),
+			up: new THREE.Vector3(0,1,0),
+			target: new THREE.Vector3(-3.0756266286419702,2.9120787467849216,1.1883060481359298)
+		},
+		effects: {
+			depthOfField: false,
+			dofFocalDistance: 0.06246486351427316
+		}
+	},
+	Backside: {
+		light: {
+			eye: new THREE.Vector3(2.7521677640928774,6.35532016910687,-2.149075878270546),
+			up: new THREE.Vector3(0,1,0),
+			target: new THREE.Vector3(2.7521677640928774,6.35532016910687,-1.149075878270546),
+			intensity: 1.571107323559069
+		},
+		camera: {
+			eye: new THREE.Vector3(-0.1955797098871913,3.9301565791054704,6.648425745852865),
+			up: new THREE.Vector3(0,1,0),
+			target: new THREE.Vector3(-0.1757188478955829,3.5035368720419906,5.744212739745763)
+		},
+		effects: {
+			depthOfField: false,
+			dofFocalDistance: 0.06246486351427316
+		}
+	}
+};
+</script>
+
+<div class="mfsviewer" objPath="obj/teapot.obj">

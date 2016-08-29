@@ -321,7 +321,7 @@ function MFSViewer(div, settings) {
 		this.ssaoColorBuffer = new THREE.WebGLRenderTarget(this.width, this.height, bufferSettings);
 	}
 	this.initializeScenes = function() {
-		this.mainCamera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.05, 10);
+		this.mainCamera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.05, 20);
 		this.mainCamera.position.z = 1;
 		this.mainScene = new THREE.Scene();
 		this.mainScene.add(this.mainCamera);
