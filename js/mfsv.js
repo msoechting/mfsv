@@ -126,15 +126,20 @@ function MFSViewer(div, settings) {
 			this.renderer.render(this.mainScene, this.mainCamera, this.newFrameBuffer);
 		}
 
-		// mix our previously accumulated image with our new frame in the mix scene
-		this.mixSceneShaderMaterial.uniforms.newFrame.value = this.newFrameBuffer.texture;
-		this.mixSceneShaderMaterial.uniforms.lastFrame.value = this.bufferFlipFlop ? this.secondAccumBuffer.texture : this.firstAccumBuffer.texture;
-		this.mixSceneShaderMaterial.uniforms.weight.value = this.frameCount / (this.frameCount + 1);
-		this.renderer.render(this.mixScene, this.mixCamera, this.bufferFlipFlop ? this.firstAccumBuffer : this.secondAccumBuffer);
+		if (this.guiOptions.mfs.accumulate) {
+			// mix our previously accumulated image with our new frame in the mix scene
+			this.mixSceneShaderMaterial.uniforms.newFrame.value = this.newFrameBuffer.texture;
+			this.mixSceneShaderMaterial.uniforms.lastFrame.value = this.bufferFlipFlop ? this.secondAccumBuffer.texture : this.firstAccumBuffer.texture;
+			this.mixSceneShaderMaterial.uniforms.weight.value = this.frameCount / (this.frameCount + 1);
+			this.renderer.render(this.mixScene, this.mixCamera, this.bufferFlipFlop ? this.firstAccumBuffer : this.secondAccumBuffer);
 
-		// render our new accumulated image to the screen (our final scene)
-		this.finalQuad.material.map = !this.bufferFlipFlop ? this.secondAccumBuffer.texture : this.firstAccumBuffer.texture;
-		this.renderer.render(this.finalScene, this.finalCamera);
+			// render our new accumulated image to the screen (our final scene)
+			this.finalQuad.material.map = !this.bufferFlipFlop ? this.secondAccumBuffer.texture : this.firstAccumBuffer.texture;
+			this.renderer.render(this.finalScene, this.finalCamera);
+		} else {
+			this.finalQuad.material.map = this.newFrameBuffer.texture;
+			this.renderer.render(this.finalScene, this.finalCamera);
+		}
 
 		this.bufferFlipFlop = !this.bufferFlipFlop;
 		this.frameCount++;
@@ -557,7 +562,8 @@ function MFSViewer(div, settings) {
 			mfs: {
 				targetFrameCount: 64,
 				minimumFrameTime: 0.0,
-				renderAlways: false
+				renderAlways: false,
+				accumulate: true
 			},
 			effects: {
 				antiAliasing: true,
@@ -623,6 +629,7 @@ function MFSViewer(div, settings) {
 		this.guiFolders.mfs.add(this.guiOptions.mfs, "targetFrameCount", 1, 128).onChange(this.updateTargetFrameCount);
 		this.guiFolders.mfs.add(this.guiOptions.mfs, "renderAlways").listen().onChange(this.updateRenderSettings);
 		this.guiFolders.mfs.add(this.guiOptions.mfs, "minimumFrameTime", 0, 500).onChange(this.updateRenderSettings);
+		this.guiFolders.mfs.add(this.guiOptions.mfs, "accumulate").onChange(this.requestRender);
 		this.guiFolders.mfs.open();
 
 		this.guiFolders.effects = this.gui.addFolder("Effects");
