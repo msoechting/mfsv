@@ -36,7 +36,7 @@ A prototypical WebGL-based Multi-frame Sampling viewer for 3D scenes using [Thre
 #### JSON model format
 <pre>&lt;div class="mfsviewer" jsonPath="obj/crytek-sponza.json"&gt;</pre>
 
-All textures need to be located in a subdirectory called "textures".
+All textures need to be located in a subdirectory called "textures". A Python script to convert textured .obj models into JSON models can be found [here](https://github.com/mrdoob/three.js/blob/master/utils/converters/obj/convert_obj_three.py).
 
 
 ### Optional URL Parameters
