@@ -26,10 +26,10 @@ function MFSViewer(div, settings) {
 		console.warn("[MFSViewer #"+_this.id+"]", logContent);
 	}
 	this.setStatus = function(status) {
-		_this.titleElement.innerHTML = _this.title + " ["+status+"]";
+		_this.progressElement.innerHTML = _this.progressPrefix + " ["+status+"]";
 	}
 	this.clearStatus = function() {
-		_this.titleElement.innerHTML = _this.title;
+		_this.progressElement.innerHTML = _this.progressPrefix;
 	}
 
 	/*
@@ -472,10 +472,10 @@ function MFSViewer(div, settings) {
 			" \n"+
 			"    float ao = 0.0; \n"+
 			" \n"+
-			"    // The '16.0' should be 'kernelSize', but WebGL does not allow uniforms in loop expressions -> https://www.khronos.org/webgl/public-mailing-list/archives/1012/msg00063.php \n"+
-			"    for (float i = 0.0; i < 16.0; ++i) \n"+
+			"    // The '8.0' should be 'kernelSize', but WebGL does not allow uniforms in loop expressions -> https://www.khronos.org/webgl/public-mailing-list/archives/1012/msg00063.php \n"+
+			"    for (float i = 0.0; i < 8.0; ++i) \n"+
 			"    { \n"+
-			"        vec3 kernelValue = texture2D(ssaoKernelSampler, vec2(i * kernelSizeInverted, frameCountFraction)).xyz; \n"+
+			"        vec3 kernelValue = texture2D(ssaoKernelSampler, vec2(i * 0.0625, frameCountFraction)).xyz; \n"+
 			"        kernelValue = (kernelValue - vec3(0.5, 0.5, 0)) * vec3(2, 2, 1); \n"+
 			"        vec3 s = tbn * kernelValue; \n"+
 			" \n"+
@@ -526,7 +526,7 @@ function MFSViewer(div, settings) {
 		// kernels originate from kernels.js
 		this.kernelSize = {
 			default: 128,
-			ssao: 16
+			ssao: 8
 		};
 
 		this.aaSamples = window.aaSamples;
@@ -633,7 +633,6 @@ function MFSViewer(div, settings) {
 		this.guiFolders.mfs.add(this.guiOptions.mfs, "renderAlways").listen().onChange(this.updateRenderSettings);
 		this.guiFolders.mfs.add(this.guiOptions.mfs, "minimumFrameTime", 0, 500).onChange(this.updateRenderSettings);
 		this.guiFolders.mfs.add(this.guiOptions.mfs, "accumulate").onChange(this.requestRender);
-		this.guiFolders.mfs.open();
 
 		this.guiFolders.effects = this.gui.addFolder("Effects");
 		this.guiFolders.effects.add(this.guiOptions.effects, "antiAliasing").onChange(this.requestRender);
@@ -664,16 +663,13 @@ function MFSViewer(div, settings) {
 		this.guiFolders.light.add(this.guiOptions.light, "followCamera").listen().onChange(this.updateLightMode);
 		this.guiFolders.light.add(this.guiOptions.light, "shadows").listen().onChange(this.updateLightSettings);
 		this.guiFolders.light.add(this.guiOptions.light, "lightIntensity", 1, 5).listen().onChange(this.updateLightSettings);
-		this.guiFolders.light.open();
 
 		this.guiFolders.dof = this.gui.addFolder("Depth of Field");
 		this.guiFolders.dof.add(this.guiOptions.depthOfField, "focalDistance", 0, 7).listen().onChange(this.requestRender);
-		this.guiFolders.dof.open();
 
 		this.guiFolders.ssao = this.gui.addFolder("SSAO");
 		this.guiFolders.ssao.add(this.guiOptions.ssao, "aoOnly").onChange(this.requestRender);
 		this.guiFolders.ssao.add(this.guiOptions.ssao, "radius", 0.005, 2).onChange(this.requestRender);
-		this.guiFolders.ssao.open();
 
 		this.guiFolders.debug = this.gui.addFolder("Debugging");
 		this.guiFolders.debug.add(this.guiOptions.debug, "aaNdcOffsetMultiplier", 1, 300).onChange(this.requestRender);
@@ -683,7 +679,6 @@ function MFSViewer(div, settings) {
 			this.guiFolders.debug.add({"forceFloatTexturePrecision": function() { window.location = window.location.href + "?forcefloat=1"; }}, "forceFloatTexturePrecision");
 			this.warn("The renderer is NOT using FLOAT texture precision. Click the 'forceFloat..' button in the Debugging section to force FLOAT texture precision.");
 		}
-		this.guiFolders.debug.open();
 	}
 	this.waitForTexturesThenAnimate = function() {
 		var matCount = this.allMaterials.length;
@@ -748,8 +743,8 @@ function MFSViewer(div, settings) {
 	}
 
 	var _this = window.mfsv = this;
-	this.titleElement = document.getElementById("title");
-	this.title = document.title;
+	this.progressElement = settings.progressElement ? settings.progressElement : document.getElementById("title");
+	this.progressPrefix = window.progressPrefix = window.progressPrefix ? window.progressPrefix : this.progressElement.innerHTML;
 	this.div = div;
 	this.initialize(settings);
 }
