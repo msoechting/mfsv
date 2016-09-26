@@ -11,7 +11,7 @@ A prototypical WebGL-based Multi-frame Sampling viewer for 3D scenes using [Thre
 * Trackball controls
 * Presets for light and camera position
 * Automatic detection of highest texture precision for render targets (float > half-float > byte)
-* DPI-senstive rendering (no blurry images on high DPI displays)
+* DPI-sensitive rendering (no blurry images on high DPI displays)
 
 ## Supported model formats
 * Untextured .obj models
