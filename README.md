@@ -2,6 +2,8 @@
 
 A prototypical WebGL-based Multi-frame Sampling viewer for 3D scenes using [Three.js](https://github.com/mrdoob/three.js/). Examples hosted [here](https://emberflare.github.io/mfsv/).
 
+Based on the paper "Progressive Rendering using Multi-Frame Sampling" by Daniel Limberger, Karsten Tausche, Johannes Linke, and Jürgen Döllner (published in GPU Pro 7, edited by Wolfgang Engel, pp.125-141, 2016).
+
 ## Features
 * Kernel-based Multi-frame Sampling
 	* Anti-Aliasing
@@ -26,8 +28,8 @@ A prototypical WebGL-based Multi-frame Sampling viewer for 3D scenes using [Thre
 * TrackballControls.js
 * dat.gui.js
 * OBJLoader.js
-* stats.js
-* eval.js
+* stats.js (optional)
+* eval.js (optional)
 
 ### Step 2: Displaying a model
 #### OBJ model
@@ -36,7 +38,7 @@ A prototypical WebGL-based Multi-frame Sampling viewer for 3D scenes using [Thre
 #### JSON model format
 <pre>&lt;div class="mfsviewer" jsonPath="obj/crytek-sponza.json"&gt;</pre>
 
-All textures need to be located in a subdirectory called "textures". A Python script to convert textured .obj models into JSON models can be found [here](https://github.com/mrdoob/three.js/blob/master/utils/converters/obj/convert_obj_three.py).
+All textures need to be located in a subdirectory called "textures" relative to the model file. A Python script to convert textured .obj models into JSON models can be found [here](https://github.com/mrdoob/three.js/blob/master/utils/converters/obj/convert_obj_three.py).
 
 
 ### Optional URL Parameters
