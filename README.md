@@ -1,8 +1,8 @@
-# mfsv
+# MFSV: A Multi-frame Sampling Viewer in WebGL
 
-A prototypical WebGL-based Multi-frame Sampling viewer for 3D scenes using [Three.js](https://github.com/mrdoob/three.js/). Examples hosted [here](https://emberflare.github.io/mfsv/).
+A prototypical WebGL-based Multi-frame Sampling viewer for 3D scenes using [Three.js](https://github.com/mrdoob/three.js/). Based on the paper "Progressive Rendering using Multi-Frame Sampling" by Daniel Limberger, Karsten Tausche, Johannes Linke, and Jürgen Döllner (published in GPU Pro 7, edited by Wolfgang Engel, pp.125-141, 2016).
 
-Based on the paper "Progressive Rendering using Multi-Frame Sampling" by Daniel Limberger, Karsten Tausche, Johannes Linke, and Jürgen Döllner (published in GPU Pro 7, edited by Wolfgang Engel, pp.125-141, 2016).
+**[Click here](https://msoechting.github.io/mfsv/) for examples.**
 
 ## Features
 * Kernel-based Multi-frame Sampling
@@ -21,7 +21,7 @@ Based on the paper "Progressive Rendering using Multi-Frame Sampling" by Daniel 
 
 ## Usage
 ### Step 1: Include .js files
-[Get](https://github.com/emberflare/mfsv/tree/master/js) and include the following .js files in your HTML code:
+[Get](https://github.com/msoechting/mfsv/tree/master/js) and include the following .js files in your HTML code:
 * mfsv.js
 * kernels.js
 * three.js
