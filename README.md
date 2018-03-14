@@ -43,7 +43,7 @@ All textures need to be located in a subdirectory called "textures" relative to 
 
 ### Optional URL Parameters
 
-<pre>emberflare.github.io/mfsv/demo-teapot.html?shadowMapSize=512&forcefloat=1</pre>
+<pre>msoechting.github.io/mfsv/demo-teapot.html?shadowMapSize=512&forcefloat=1</pre>
 
 * shadowMapSize: Sets the width and height for the shadow map.
 * forcefloat: If set to 1, forces the renderer to use float texture precision, regardless of detected WebGL extensions.

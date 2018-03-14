@@ -2,7 +2,7 @@
 timezone: Europe/Berlin
 
 baseurl: '/mfsv' # the subpath of your site, e.g. /blog/
-url: 'http://emberflare.github.io' # the base hostname & protocol for your site
+url: 'http://msoechting.github.io' # the base hostname & protocol for your site
 
 title: 'WebGL-based Multi-frame Sampling Demos'
 submission: 'Maximilian Söchting, Daniel Limberger'
